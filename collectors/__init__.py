@@ -95,19 +95,19 @@ class StravaCollector:
         name = activity.get('name', '').lower()
         
         # Direct indicators
-        if 'crossfit' in name or 'wod' in name:
+        if any(keyword in name for keyword in ['crossfit', 'wod', 'murph', 'fran', 'grace', 'helen']):
             return True
         
-        # Workout characteristics
-        avg_hr = activity.get('average_heartrate', 0)
-        max_hr = activity.get('max_heartrate', 0)
+        # Workout characteristics (relaxed criteria)
+        avg_hr = activity.get('average_heartrate', 0) or 0
+        max_hr = activity.get('max_heartrate', 0) or 0
         duration = activity.get('moving_time', 0) / 60  # minutes
         
-        # CrossFit patterns: high intensity, 20-60 min, high HR
+        # CrossFit patterns: high intensity workout, 20-90 min, elevated HR
+        # Relaxed: avg HR > 130 OR max HR > 165
         if (activity_type == 'Workout' and 
-            15 <= duration <= 90 and 
-            avg_hr > 140 and 
-            max_hr > 170):
+            20 <= duration <= 120 and 
+            (avg_hr > 130 or max_hr > 165)):
             return True
         
         return False

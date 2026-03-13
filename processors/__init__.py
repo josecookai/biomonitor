@@ -22,11 +22,14 @@ class MetricsCalculator:
         
         week_end = week_start + timedelta(days=7)
         
+        # Convert dates to timezone-naive for comparison
+        dates = pd.to_datetime(self.activities['start_date']).dt.tz_localize(None)
+        
         # Filter activities
         crossfit_activities = self.activities[
             (self.activities['is_crossfit'] == True) &
-            (pd.to_datetime(self.activities['start_date']) >= week_start) &
-            (pd.to_datetime(self.activities['start_date']) < week_end)
+            (dates >= week_start.replace(tzinfo=None)) &
+            (dates < week_end.replace(tzinfo=None))
         ]
         
         return len(crossfit_activities)
@@ -38,10 +41,13 @@ class MetricsCalculator:
         
         week_end = week_start + timedelta(days=7)
         
+        # Convert dates to timezone-naive for comparison
+        dates = pd.to_datetime(self.activities['start_date']).dt.tz_localize(None)
+        
         walking_activities = self.activities[
             (self.activities['is_walking'] == True) &
-            (pd.to_datetime(self.activities['start_date']) >= week_start) &
-            (pd.to_datetime(self.activities['start_date']) < week_end)
+            (dates >= week_start.replace(tzinfo=None)) &
+            (dates < week_end.replace(tzinfo=None))
         ]
         
         total_distance = walking_activities['distance'].sum() / 1000  # km
@@ -58,19 +64,20 @@ class MetricsCalculator:
         """Analyze training load over time"""
         cutoff_date = datetime.now() - timedelta(days=days)
         
-        recent_activities = self.activities[
-            pd.to_datetime(self.activities['start_date']) >= cutoff_date
-        ]
+        dates = pd.to_datetime(self.activities['start_date']).dt.tz_localize(None)
+        
+        recent_activities = self.activities[dates >= cutoff_date.replace(tzinfo=None)]
         
         # Calculate TRIMP-like score (Training Impulse)
         # TRIMP = duration_min * avg_hr_factor
+        recent_activities = recent_activities.copy()
         recent_activities['trimp'] = (
             recent_activities['moving_time'] / 60 * 
             recent_activities['average_heartrate'].fillna(100) / 100
         )
         
         daily_load = recent_activities.groupby(
-            pd.to_datetime(recent_activities['start_date']).dt.date
+            dates.dt.date
         )['trimp'].sum()
         
         return {
