@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import os
 import sys
 
@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from storage import BioDatabase
 from processors import MetricsCalculator
+from collectors import StravaCollector, AppleHealthCollector
 
 app = FastAPI(
     title="BioMonitor API",
@@ -28,8 +29,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize database
+# Initialize database and collectors
 db = BioDatabase()
+strava_collector = StravaCollector()
+apple_collector = AppleHealthCollector()
 
 # Pydantic models
 class Activity(BaseModel):
@@ -53,6 +56,11 @@ class CrossFitWorkout(BaseModel):
     weight: Optional[float] = None
     rpe: Optional[int] = None
     notes: Optional[str] = None
+
+class HealthAutoExportData(BaseModel):
+    """Health Auto Export webhook data"""
+    data: List[Dict[str, Any]]
+    metadata: Optional[Dict] = None
 
 # API Routes
 
@@ -220,10 +228,80 @@ def get_crossfit_workouts(limit: int = 10):
     
     return workouts
 
+# ========== STRAVA INTEGRATION ==========
+
+@app.post("/api/strava/sync")
+def sync_strava(days: int = 30):
+    """Sync activities from Strava"""
+    try:
+        count = strava_collector.sync_to_database(db, days)
+        return {
+            "success": True,
+            "synced_activities": count,
+            "days": days
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
+
+@app.get("/api/strava/stats")
+def get_strava_stats():
+    """Get Strava connection status"""
+    return {
+        "connected": strava_collector.access_token is not None,
+        "client_id": strava_collector.client_id,
+        "last_sync": None  # TODO: Track last sync time
+    }
+
+# ========== APPLE HEALTH (Health Auto Export) ==========
+
+@app.post("/api/apple-health/webhook")
+def apple_health_webhook(data: HealthAutoExportData):
+    """
+    Receive data from Health Auto Export app
+    
+    Configure the app to POST to:
+    http://your-server:8000/api/apple-health/webhook
+    """
+    try:
+        # Save the webhook data
+        filepath = apple_collector.save_webhook_data(data.dict())
+        
+        # Parse metrics
+        metrics = apple_collector.parse_health_export(filepath)
+        
+        # Save to database (TODO: implement health metrics table)
+        saved_count = 0
+        for metric_type, records in metrics.items():
+            for record in records:
+                # TODO: Save to health_metrics table
+                saved_count += 1
+        
+        return {
+            "success": True,
+            "saved_to": filepath,
+            "records_processed": saved_count,
+            "metrics_types": list(metrics.keys())
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Webhook processing failed: {str(e)}")
+
+@app.get("/api/health-metrics/latest")
+def get_latest_health_metrics():
+    """Get latest health metrics from Apple Health"""
+    # TODO: Query from database
+    return {
+        "resting_hr": 70,
+        "hrv": 49,
+        "sleep_hours": 7.2,
+        "steps": 8500,
+        "source": "apple_health"
+    }
+
 @app.get("/api/share/card")
 def generate_share_card():
     """Generate data for share card"""
     stats = get_current_week_stats()
+    health = get_latest_health_metrics()
     
     return {
         "week": stats['week_start'],
@@ -234,8 +312,8 @@ def generate_share_card():
         "walking": {
             "distance_km": stats['walking_distance_km']
         },
-        "hrv": 49,
-        "resting_hr": 70
+        "hrv": health['hrv'],
+        "resting_hr": health['resting_hr']
     }
 
 if __name__ == "__main__":
