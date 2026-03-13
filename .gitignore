@@ -1,0 +1,44 @@
+# BioMonitor
+biomonitor.db
+*.db
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+ENV/
+env/
+
+# Dashboard
+node_modules/
+.next/
+out/
+
+# Config with secrets
+config.yaml
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Health exports (private data)
+health_export/
+apple_health_export/
+*.xml
+*.zip
