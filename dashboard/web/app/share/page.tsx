@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Share2, Download, ArrowLeft, Check } from 'lucide-react'
 import Link from 'next/link'
 import { 
@@ -11,27 +11,56 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
-  AreaChart,
-  Area
 } from 'recharts'
-
-const weeklyData = [
-  { day: 'Mon', crossfit: 1, walking: 3.2, hrv: 45 },
-  { day: 'Tue', crossfit: 0, walking: 5.1, hrv: 48 },
-  { day: 'Wed', crossfit: 1, walking: 2.8, hrv: 52 },
-  { day: 'Thu', crossfit: 0, walking: 4.5, hrv: 49 },
-  { day: 'Fri', crossfit: 1, walking: 3.0, hrv: 51 },
-  { day: 'Sat', crossfit: 0, walking: 6.2, hrv: 53 },
-  { day: 'Sun', crossfit: 0, walking: 4.0, hrv: 50 },
-]
+import { getShareCard, getDailyData } from '@/lib/api'
 
 export default function SharePage() {
   const [copied, setCopied] = useState(false)
+  const [shareData, setShareData] = useState<any>(null)
+  const [dailyData, setDailyData] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const shareCardRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [cardData, daily] = await Promise.all([
+          getShareCard(),
+          getDailyData(7)
+        ])
+        setShareData(cardData)
+        
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+        const chartData = daily.map((d: any) => {
+          const date = new Date(d.date)
+          return {
+            day: dayNames[date.getDay()],
+            crossfit: d.crossfit,
+            walking: d.walking
+          }
+        })
+        setDailyData(chartData)
+      } catch (error) {
+        console.error('Failed to load share data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    loadData()
+  }, [])
 
   const handleCopy = () => {
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
+      </main>
+    )
   }
 
   return (
@@ -68,7 +97,9 @@ export default function SharePage() {
                   </div>
                   <span className="font-semibold">BioMonitor</span>
                 </div>
-                <span className="text-slate-400 text-sm">Mar 10-16, 2026</span>
+                <span className="text-slate-400 text-sm">
+                  {shareData?.week ? new Date(shareData.week).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'This Week'}
+                </span>
               </div>
 
               {/* Title */}
@@ -78,22 +109,27 @@ export default function SharePage() {
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="bg-white/10 rounded-xl p-4">
                   <p className="text-slate-400 text-xs mb-1">CrossFit</p>
-                  <p className="text-3xl font-bold">3<span className="text-lg text-slate-400">/3</span></p>
-                  <p className="text-green-400 text-xs mt-1">On target 🎯</p>
+                  <p className="text-3xl font-bold">
+                    {shareData?.crossfit?.completed || 0}
+                    <span className="text-lg text-slate-400">/{shareData?.crossfit?.target || 3}</span>
+                  </p>
+                  <p className="text-green-400 text-xs mt-1">
+                    {shareData?.crossfit?.completed >= shareData?.crossfit?.target ? 'On target 🎯' : 'Keep going 💪'}
+                  </p>
                 </div>
                 <div className="bg-white/10 rounded-xl p-4">
                   <p className="text-slate-400 text-xs mb-1">Walking</p>
-                  <p className="text-3xl font-bold">28.8</p>
+                  <p className="text-3xl font-bold">{(shareData?.walking?.distance_km || 0).toFixed(1)}</p>
                   <p className="text-slate-400 text-xs mt-1">kilometers</p>
                 </div>
                 <div className="bg-white/10 rounded-xl p-4">
                   <p className="text-slate-400 text-xs mb-1">Avg HRV</p>
-                  <p className="text-3xl font-bold">49</p>
+                  <p className="text-3xl font-bold">{shareData?.hrv || 49}</p>
                   <p className="text-green-400 text-xs mt-1">ms ↑</p>
                 </div>
                 <div className="bg-white/10 rounded-xl p-4">
                   <p className="text-slate-400 text-xs mb-1">Resting HR</p>
-                  <p className="text-3xl font-bold">70</p>
+                  <p className="text-3xl font-bold">{shareData?.resting_hr || 70}</p>
                   <p className="text-slate-400 text-xs mt-1">bpm</p>
                 </div>
               </div>
@@ -102,7 +138,7 @@ export default function SharePage() {
               <div className="bg-white/5 rounded-xl p-4">
                 <p className="text-slate-400 text-xs mb-2">Activity Overview</p>
                 <ResponsiveContainer width="100%" height={100}>
-                  <BarChart data={weeklyData}>
+                  <BarChart data={dailyData}>
                     <Bar dataKey="crossfit" fill="#f97316" radius={[2, 2, 0, 0]} />
                     <Bar dataKey="walking" fill="#3b82f6" radius={[2, 2, 0, 0]} />
                   </BarChart>
