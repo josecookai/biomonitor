@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { 
-  Activity, 
-  Heart, 
-  Footprints, 
+import {
+  Activity,
+  Heart,
+  Footprints,
   Dumbbell,
   Flame,
   Share2,
@@ -13,7 +13,9 @@ import {
   Trophy,
   Zap,
   TrendingUp,
-  Calendar
+  Calendar,
+  BellRing,
+  Pill
 } from 'lucide-react'
 import { 
   BarChart, 
@@ -306,12 +308,26 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground">Personal Health Dashboard</p>
               </div>
             </div>
-            <Link href="/share">
-              <button className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition">
-                <Share2 className="w-4 h-4" />
-                <span className="text-sm font-medium">Share</span>
-              </button>
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link href="/supplements">
+                <button className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition">
+                  <Pill className="w-4 h-4" />
+                  <span className="text-sm font-medium">Supplements</span>
+                </button>
+              </Link>
+              <Link href="/reminders">
+                <button className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition">
+                  <BellRing className="w-4 h-4" />
+                  <span className="text-sm font-medium">Reminders</span>
+                </button>
+              </Link>
+              <Link href="/share">
+                <button className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition">
+                  <Share2 className="w-4 h-4" />
+                  <span className="text-sm font-medium">Share</span>
+                </button>
+              </Link>
+            </div>
           </div>
         </div>
       </header>

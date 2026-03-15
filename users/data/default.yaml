@@ -1,0 +1,15 @@
+user_id: default
+name: User
+age: 30
+weight_kg: 70.0
+height_cm: 170.0
+sex: male
+activity_level: moderate
+device: strava_only
+health_goals:
+  - general_health
+conditions: []
+avg_sleep_hours: null
+avg_hrv: null
+avg_resting_hr: null
+recovery_score: null

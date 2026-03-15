@@ -14,6 +14,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from storage import BioDatabase
 from processors import MetricsCalculator
 from collectors import StravaCollector, AppleHealthCollector, OuraCollector, WhoopCollector, XiaomiBandCollector
+from users import load_profile, save_profile, UserProfile
+from engine.supplements import SupplementEngine
 
 app = FastAPI(
     title="BioMonitor API",
@@ -656,6 +658,215 @@ def get_whoop_strain(days: int = Field(default=7, ge=1, le=90)):
     Returns records of metric_type='WhoopStrain' for the last *days* days.
     """
     return db.get_health_metrics_history(days=days, metric_type="WhoopStrain")
+
+
+# ========== SMART REMINDERS ==========
+from engine import RemindersEngine
+
+
+@app.get("/api/reminders/sleep")
+def get_sleep_recommendation():
+    """Analyse recent sleep data and return a bedtime / wake-time recommendation."""
+    engine = RemindersEngine(db)
+    return engine.sleep_recommendation()
+
+
+@app.get("/api/reminders/hydration")
+def get_hydration_schedule(
+    wake_time: str = "07:00",
+    sleep_time: str = "23:00",
+):
+    """Generate an hourly water-intake schedule for today."""
+    engine = RemindersEngine(db)
+    return engine.hydration_schedule(wake_time=wake_time, sleep_time=sleep_time)
+
+
+@app.get("/api/reminders/standing")
+def get_standing_reminders(
+    work_start: str = "09:00",
+    work_end: str = "18:00",
+):
+    """Generate stand-up reminders during work hours (every 50 min of sitting)."""
+    engine = RemindersEngine(db)
+    return engine.standing_reminders(work_start=work_start, work_end=work_end)
+
+
+@app.get("/api/reminders/fitness")
+def get_fitness_reminders(weekly_target: int = Field(default=3, ge=1, le=7)):
+    """Smart workout scheduling based on this week's CrossFit count and HRV."""
+    engine = RemindersEngine(db)
+    return engine.fitness_reminders(weekly_target=weekly_target)
+
+
+@app.get("/api/reminders/recovery")
+def get_recovery_recommendation():
+    """Score recovery 0-100 from WHOOP, Oura, and HRV data."""
+    engine = RemindersEngine(db)
+    return engine.rest_recommendation()
+
+
+@app.get("/api/reminders/daily")
+def get_daily_schedule(
+    wake_time: str = "07:00",
+    sleep_time: str = "23:00",
+    work_start: str = "09:00",
+    work_end: str = "18:00",
+):
+    """Merge all reminders into a single sorted daily timeline."""
+    engine = RemindersEngine(db)
+    return engine.daily_schedule(
+        wake_time=wake_time,
+        sleep_time=sleep_time,
+        work_start=work_start,
+        work_end=work_end,
+    )
+
+
+# ========== SUPPLEMENTS & USER PROFILES ==========
+
+_supplement_engine = SupplementEngine()
+_KNOWN_USERS = ["carl", "zelda", "zn", "default"]
+
+
+def _get_health_metrics_for_profile(profile: UserProfile) -> Dict[str, Any]:
+    """
+    Pull recent health metrics from the DB and compute averages that can
+    enrich a UserProfile before supplement recommendations are generated.
+    """
+    metrics: Dict[str, Any] = {}
+
+    try:
+        # HRV
+        hrv_records = db.get_health_metrics_history(days=30, metric_type="HeartRateVariabilitySDNN")
+        if hrv_records:
+            vals = [r["value"] for r in hrv_records if isinstance(r.get("value"), (int, float))]
+            if vals:
+                metrics["avg_hrv"] = round(sum(vals) / len(vals), 1)
+
+        # Resting HR
+        hr_records = db.get_health_metrics_history(days=30, metric_type="HeartRate")
+        if hr_records:
+            vals = [r["value"] for r in hr_records if isinstance(r.get("value"), (int, float))]
+            if vals:
+                metrics["avg_resting_hr"] = round(sum(vals) / len(vals), 1)
+
+        # Sleep (Oura)
+        sleep_records = db.get_health_metrics_history(days=30, metric_type="OuraSleepDuration")
+        if sleep_records:
+            vals = [r["value"] for r in sleep_records if isinstance(r.get("value"), (int, float))]
+            if vals:
+                # OuraSleepDuration is stored in seconds
+                metrics["avg_sleep_hours"] = round((sum(vals) / len(vals)) / 3600, 1)
+
+        # WHOOP recovery
+        whoop_recovery = db.get_health_metrics_history(days=30, metric_type="WhoopRecovery")
+        if whoop_recovery:
+            vals = [r["value"] for r in whoop_recovery if isinstance(r.get("value"), (int, float))]
+            if vals:
+                metrics["recovery_score"] = round(sum(vals) / len(vals), 1)
+
+        # Oura readiness as fallback recovery score
+        if "recovery_score" not in metrics:
+            oura_ready = db.get_health_metrics_history(days=30, metric_type="OuraReadiness")
+            if oura_ready:
+                vals = [r["value"] for r in oura_ready if isinstance(r.get("value"), (int, float))]
+                if vals:
+                    metrics["recovery_score"] = round(sum(vals) / len(vals), 1)
+    except Exception:
+        # Never let metric-fetching failures block supplement recommendations
+        pass
+
+    return metrics
+
+
+@app.get("/api/users/{user_id}/profile")
+def get_user_profile(user_id: str):
+    """Return the YAML-backed profile for a user."""
+    profile = load_profile(user_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail=f"Profile not found for user '{user_id}'")
+    from dataclasses import asdict
+    return asdict(profile)
+
+
+@app.put("/api/users/{user_id}/profile")
+def update_user_profile(user_id: str, updates: Dict[str, Any]):
+    """Merge partial updates into a user's profile and persist."""
+    profile = load_profile(user_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail=f"Profile not found for user '{user_id}'")
+
+    from dataclasses import asdict, replace
+    current = asdict(profile)
+    # Only allow updating known fields; ignore unknown keys
+    allowed_fields = set(current.keys())
+    safe_updates = {k: v for k, v in updates.items() if k in allowed_fields}
+    if not safe_updates:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
+
+    updated_profile = replace(profile, **safe_updates)
+    save_profile(updated_profile)
+    return asdict(updated_profile)
+
+
+@app.get("/api/users/{user_id}/supplements")
+def get_supplement_recommendations(user_id: str):
+    """Return a flat list of personalised supplement recommendations."""
+    profile = load_profile(user_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail=f"Profile not found for user '{user_id}'")
+
+    health_metrics = _get_health_metrics_for_profile(profile)
+    supplements = _supplement_engine.recommend(profile, health_metrics)
+    return {
+        "user_id": user_id,
+        "name": profile.name,
+        "supplements": [s.to_dict() for s in supplements],
+        "count": len(supplements),
+    }
+
+
+@app.get("/api/users/{user_id}/supplements/daily-plan")
+def get_daily_supplement_plan(user_id: str):
+    """Return supplements grouped by timing for a daily schedule view."""
+    profile = load_profile(user_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail=f"Profile not found for user '{user_id}'")
+
+    health_metrics = _get_health_metrics_for_profile(profile)
+    supplements = _supplement_engine.recommend(profile, health_metrics)
+    plan = _supplement_engine.as_daily_plan(supplements)
+    return {
+        "user_id": user_id,
+        "name": profile.name,
+        "device": profile.device,
+        "health_goals": profile.health_goals,
+        "recovery_score": profile.recovery_score,
+        "avg_sleep_hours": profile.avg_sleep_hours,
+        "avg_hrv": profile.avg_hrv,
+        "plan": plan,
+    }
+
+
+@app.get("/api/supplements/all-users")
+def get_all_users_supplements():
+    """Return supplement recommendations for all known users side by side."""
+    result: Dict[str, Any] = {}
+    for uid in _KNOWN_USERS:
+        profile = load_profile(uid)
+        if profile is None:
+            result[uid] = {"error": "profile not found"}
+            continue
+        health_metrics = _get_health_metrics_for_profile(profile)
+        supplements = _supplement_engine.recommend(profile, health_metrics)
+        plan = _supplement_engine.as_daily_plan(supplements)
+        result[uid] = {
+            "name": profile.name,
+            "device": profile.device,
+            "health_goals": profile.health_goals,
+            "plan": plan,
+        }
+    return result
 
 
 if __name__ == "__main__":

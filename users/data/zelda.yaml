@@ -1,0 +1,17 @@
+user_id: zelda
+name: Zelda
+age: 28
+weight_kg: 58.0
+height_cm: 165.0
+sex: female
+activity_level: moderate
+device: xiaomi
+health_goals:
+  - sleep
+  - weight_loss
+  - general_health
+conditions: []
+avg_sleep_hours: null
+avg_hrv: null
+avg_resting_hr: null
+recovery_score: null

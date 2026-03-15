@@ -1,0 +1,17 @@
+user_id: zn
+name: ZN
+age: 30
+weight_kg: 72.0
+height_cm: 175.0
+sex: male
+activity_level: very_active
+device: whoop
+health_goals:
+  - muscle_gain
+  - recovery
+  - endurance
+conditions: []
+avg_sleep_hours: null
+avg_hrv: null
+avg_resting_hr: null
+recovery_score: null

@@ -1,0 +1,17 @@
+user_id: carl
+name: Carl
+age: 32
+weight_kg: 78.0
+height_cm: 180.0
+sex: male
+activity_level: active
+device: oura
+health_goals:
+  - sleep
+  - recovery
+  - endurance
+conditions: []
+avg_sleep_hours: null
+avg_hrv: null
+avg_resting_hr: null
+recovery_score: null
