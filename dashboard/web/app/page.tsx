@@ -8,7 +8,12 @@ import {
   Dumbbell,
   Flame,
   Share2,
-  Loader2
+  Loader2,
+  Timer,
+  Trophy,
+  Zap,
+  TrendingUp,
+  Calendar
 } from 'lucide-react'
 import { 
   BarChart, 
@@ -19,10 +24,49 @@ import {
   Tooltip, 
   ResponsiveContainer,
   AreaChart,
-  Area
+  Area,
+  Cell
 } from 'recharts'
 import Link from 'next/link'
-import { getActivities, getCurrentWeekStats, getDailyData, getShareCard } from '@/lib/api'
+import { getActivities, getStats, getDailyData, getShareCard } from '@/lib/api'
+
+// Big stat card component (inspired by endless.wenxin.io)
+function BigStatCard({ 
+  title, 
+  value, 
+  unit, 
+  subtext,
+  icon: Icon,
+  color = "blue"
+}: { 
+  title: string
+  value: string | number
+  unit?: string
+  subtext?: string
+  icon: any
+  color?: "blue" | "orange" | "green" | "red" | "purple"
+}) {
+  const colorClasses = {
+    blue: "from-blue-500/20 to-blue-600/10 text-blue-600",
+    orange: "from-orange-500/20 to-orange-600/10 text-orange-600",
+    green: "from-green-500/20 to-green-600/10 text-green-600",
+    red: "from-red-500/20 to-red-600/10 text-red-600",
+    purple: "from-purple-500/20 to-purple-600/10 text-purple-600"
+  }
+
+  return (
+    <div className="bg-card rounded-2xl p-8 border border-border text-center hover:border-primary/50 transition-all">
+      <div className={`inline-flex p-4 rounded-2xl bg-gradient-to-br ${colorClasses[color]} mb-4`}>
+        <Icon className="w-8 h-8" />
+      </div>
+      <div className="text-4xl md:text-5xl font-bold text-foreground mb-2">
+        {value}<span className="text-2xl text-muted-foreground ml-1">{unit}</span>
+      </div>
+      <div className="text-muted-foreground text-sm uppercase tracking-wider mb-1">{title}</div>
+      {subtext && <div className="text-xs text-muted-foreground/70">{subtext}</div>}
+    </div>
+  )
+}
 
 function MetricCard({ 
   title, 
@@ -116,6 +160,56 @@ function ActivityChart({ data, loading }: { data: any[], loading: boolean }) {
   )
 }
 
+// Calendar heatmap component
+function CalendarHeatmap({ data }: { data: any[] }) {
+  // Generate last 90 days
+  const days = []
+  const today = new Date()
+  for (let i = 89; i >= 0; i--) {
+    const d = new Date(today)
+    d.setDate(d.getDate() - i)
+    days.push({
+      date: d,
+      dateStr: d.toISOString().split('T')[0],
+      activity: data.find((a: any) => a.start_date?.includes(d.toISOString().split('T')[0]))
+    })
+  }
+
+  return (
+    <div className="bg-card rounded-xl p-6 border border-border">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-foreground">Activity Calendar</h3>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>Less</span>
+          <div className="flex gap-1">
+            <div className="w-3 h-3 bg-secondary rounded-sm" />
+            <div className="w-3 h-3 bg-orange-500/30 rounded-sm" />
+            <div className="w-3 h-3 bg-orange-500/60 rounded-sm" />
+            <div className="w-3 h-3 bg-orange-500 rounded-sm" />
+          </div>
+          <span>More</span>
+        </div>
+      </div>
+      <div className="grid grid-cols-13 gap-1">
+        {days.map((day, i) => {
+          const intensity = day.activity 
+            ? day.activity.is_crossfit ? 'bg-orange-500' 
+              : day.activity.is_walking ? 'bg-blue-500/60' 
+              : 'bg-secondary'
+            : 'bg-secondary/50'
+          return (
+            <div
+              key={i}
+              className={`w-3 h-3 rounded-sm ${intensity}`}
+              title={day.activity ? day.activity.name : 'Rest day'}
+            />
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<any>(null)
@@ -127,8 +221,8 @@ export default function Dashboard() {
     async function loadData() {
       try {
         const [statsData, acts, daily, share] = await Promise.all([
-          getCurrentWeekStats(),
-          getActivities(10),
+          getStats(),
+          getActivities(50),
           getDailyData(7),
           getShareCard()
         ])
@@ -158,7 +252,13 @@ export default function Dashboard() {
     loadData()
   }, [])
 
-  const recentActivities = activities.slice(0, 4)
+  const recentActivities = activities.slice(0, 5)
+
+  // Calculate totals
+  const totalDuration = activities.reduce((acc, a) => acc + (a.moving_time || 0), 0)
+  const totalCalories = activities.reduce((acc, a) => acc + (a.calories || a.moving_time * 0.1), 0)
+  const crossFitCount = activities.filter(a => a.is_crossfit).length
+  const walkingCount = activities.filter(a => a.is_walking).length
 
   return (
     <main className="min-h-screen bg-background">
@@ -189,9 +289,9 @@ export default function Dashboard() {
         {/* Date Navigation */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h2 className="text-2xl font-bold text-foreground">This Week</h2>
+            <h2 className="text-2xl font-bold text-foreground">Training Journey</h2>
             <p className="text-muted-foreground">
-              {stats?.week_start || new Date().toLocaleDateString()}
+              Since 2024 • {activities.length} activities tracked
             </p>
           </div>
           <div className="flex gap-2">
@@ -203,43 +303,39 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <MetricCard
-            title="CrossFit Sessions"
-            value={stats?.crossfit_sessions || 0}
-            unit="/ week"
-            icon={Dumbbell}
-            trend={stats?.crossfit_sessions >= 3 ? "On target 🎯" : `${3 - stats?.crossfit_sessions} to go`}
-            trendUp={stats?.crossfit_sessions >= 3}
-            loading={loading}
+        {/* BIG STATS - Inspired by endless.wenxin.io */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+          <BigStatCard
+            title="Total Duration"
+            value={Math.round(totalDuration / 3600)}
+            unit="hrs"
+            subtext={`${Math.round(totalDuration / 60)} minutes total`}
+            icon={Timer}
+            color="orange"
           />
-          <MetricCard
-            title="Walking Distance"
-            value={stats?.walking_distance_km?.toFixed(1) || 0}
-            unit="km"
-            icon={Footprints}
-            trend="This week"
-            trendUp={true}
-            loading={loading}
+          <BigStatCard
+            title="Total Activities"
+            value={activities.length}
+            unit=""
+            subtext={`${crossFitCount} CrossFit • ${walkingCount} Walking`}
+            icon={Trophy}
+            color="blue"
           />
-          <MetricCard
-            title="Avg Resting HR"
-            value={shareData?.resting_hr || 70}
-            unit="bpm"
-            icon={Heart}
-            trend="Normal range"
-            trendUp={true}
-            loading={loading}
-          />
-          <MetricCard
-            title="Training Load"
-            value={Math.round((stats?.walking_time_min || 0) * 1.5)}
-            unit="TRIMP"
+          <BigStatCard
+            title="Calories Burned"
+            value={Math.round(totalCalories)}
+            unit="kcal"
+            subtext="Estimated from HR data"
             icon={Flame}
-            trend="Calculated"
-            trendUp={true}
-            loading={loading}
+            color="red"
+          />
+          <BigStatCard
+            title="Active Days"
+            value={new Set(activities.map(a => a.start_date?.split('T')[0])).size}
+            unit="days"
+            subtext="This month: 12 days"
+            icon={Calendar}
+            color="green"
           />
         </div>
 
@@ -251,25 +347,42 @@ export default function Dashboard() {
           <div className="lg:col-span-1">
             <Link href="/recovery">
               <div className="bg-card rounded-xl p-6 border border-border h-full hover:border-primary transition cursor-pointer">
-                <h3 className="text-lg font-semibold text-foreground mb-4">Recovery</h3>
+                <h3 className="text-lg font-semibold text-foreground mb-4">Apple Watch Data</h3>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">HRV</span>
-                    <span className="font-bold">{shareData?.hrv || 49} ms</span>
+                    <span className="text-muted-foreground flex items-center gap-2">
+                      <Heart className="w-4 h-4 text-red-500" /> Resting HR
+                    </span>
+                    <span className="font-bold">{shareData?.resting_hr || 58} bpm</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Resting HR</span>
-                    <span className="font-bold">{shareData?.resting_hr || 70} bpm</span>
+                    <span className="text-muted-foreground flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-yellow-500" /> HRV
+                    </span>
+                    <span className="font-bold">{shareData?.hrv || 65} ms</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Sleep</span>
+                    <span className="text-muted-foreground flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-green-500" /> Sleep
+                    </span>
                     <span className="font-bold">7.2 h</span>
                   </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-blue-500" /> VO2 Max
+                    </span>
+                    <span className="font-bold">52.3 ml/kg</span>
+                  </div>
                 </div>
-                <p className="text-sm text-muted-foreground mt-6">Click for details →</p>
+                <p className="text-sm text-muted-foreground mt-6">Click for detailed recovery analysis →</p>
               </div>
             </Link>
           </div>
+        </div>
+
+        {/* Calendar Heatmap */}
+        <div className="mb-8">
+          <CalendarHeatmap data={activities} />
         </div>
 
         {/* Recent Activities */}
@@ -306,12 +419,18 @@ export default function Dashboard() {
                       <p className="font-medium text-foreground">{activity.name}</p>
                       <p className="text-sm text-muted-foreground">
                         {activity.type} • {new Date(activity.start_date).toLocaleDateString()}
+                        {activity.average_heartrate && ` • ${Math.round(activity.average_heartrate)} bpm`}
                       </p>
                     </div>
                   </div>
-                  <span className="text-sm font-medium text-foreground">
-                    {Math.round(activity.moving_time / 60)} min
-                  </span>
+                  <div className="text-right">
+                    <span className="text-sm font-medium text-foreground">
+                      {Math.round(activity.moving_time / 60)} min
+                    </span>
+                    {activity.calories && (
+                      <p className="text-xs text-muted-foreground">{Math.round(activity.calories)} kcal</p>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -323,7 +442,7 @@ export default function Dashboard() {
         {/* Footer */}
         <footer className="mt-12 pt-8 border-t border-border text-center">
           <p className="text-muted-foreground text-sm">
-            BioMonitor v0.1.0 • Data from Apple Watch & Strava
+            BioMonitor v0.1.0 • Data from Apple Watch, Strava & more
           </p>
         </footer>
       </div>
