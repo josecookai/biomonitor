@@ -1,0 +1,44 @@
+# BioMonitor Configuration Template
+# Copy this file to config.yaml and fill in your API credentials
+# All sections are optional. Features are disabled if not configured.
+
+# Strava integration (running, cycling, swimming)
+strava:
+  client_id: "your_strava_client_id"
+  client_secret: "your_strava_client_secret"
+  access_token: "your_strava_access_token"
+  refresh_token: "your_strava_refresh_token"
+
+# Apple Health integration via Health Auto Export app
+apple_health:
+  export_path: "/tmp/apple_health_exports"
+  webhook_enabled: true
+
+# Oura Ring integration
+oura:
+  access_token: "your_oura_personal_access_token"
+
+# WHOOP integration
+whoop:
+  client_id: "your_whoop_client_id"
+  client_secret: "your_whoop_client_secret"
+  access_token: "your_whoop_access_token"
+  refresh_token: "your_whoop_refresh_token"
+
+# Xiaomi Mi Band integration
+xiaomi:
+  account_email: "your_xiaomi_account_email"
+  password: "your_xiaomi_password"
+  # Or provide a path to exported JSON instead:
+  # export_file: "/path/to/xiaomi_export.json"
+
+# Database settings (optional)
+database:
+  path: "biomonitor.db"
+  reset_on_start: false
+
+# API settings (optional)
+api:
+  host: "127.0.0.1"
+  port: 8000
+  # API key is configured via BIOMONITOR_API_KEY environment variable
