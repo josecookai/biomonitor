@@ -33,17 +33,35 @@ _REQUEST_TIMEOUT = (5, 30)  # (connect_timeout, read_timeout) in seconds
 
 
 class StravaCollector:
-    """Collect workout data from Strava API"""
+    """Collect workout data from Strava API - supports both config.yaml and env vars"""
 
     def __init__(self, access_token: str = None):
         config = load_config()
         strava_config = config.get('strava', {})
 
-        self.access_token = access_token or strava_config.get('access_token')
-        self.client_id = strava_config.get('client_id')
-        self.client_secret = strava_config.get('client_secret')
-        self.refresh_token = strava_config.get('refresh_token')
+        # Priority: 1) explicit arg, 2) env var, 3) config.yaml
+        self.access_token = access_token or os.getenv('STRAVA_ACCESS_TOKEN') or strava_config.get('access_token')
+        self.client_id = os.getenv('STRAVA_CLIENT_ID') or strava_config.get('client_id')
+        self.client_secret = os.getenv('STRAVA_CLIENT_SECRET') or strava_config.get('client_secret')
+        self.refresh_token = os.getenv('STRAVA_REFRESH_TOKEN') or strava_config.get('refresh_token')
         self.base_url = "https://www.strava.com/api/v3"
+        
+        # Sync tokens back to config if env vars are used
+        if os.getenv('STRAVA_ACCESS_TOKEN') and not strava_config.get('access_token'):
+            self._persist_tokens()
+
+    def _persist_tokens(self):
+        """Persist tokens to config.yaml"""
+        try:
+            config = load_config()
+            config.setdefault('strava', {})
+            config['strava']['access_token'] = self.access_token
+            config['strava']['refresh_token'] = self.refresh_token
+            config['strava']['client_id'] = self.client_id
+            config['strava']['client_secret'] = self.client_secret
+            save_config(config)
+        except Exception as e:
+            print(f"Warning: could not persist Strava tokens: {e}")
 
     def refresh_access_token(self) -> bool:
         """Refresh the access token using refresh token and persist the new tokens"""
@@ -65,17 +83,9 @@ class StravaCollector:
             data = response.json()
             self.access_token = data['access_token']
             self.refresh_token = data.get('refresh_token', self.refresh_token)
-
-            # Persist updated tokens so they survive process restarts
-            try:
-                config = load_config()
-                config.setdefault('strava', {})
-                config['strava']['access_token'] = self.access_token
-                config['strava']['refresh_token'] = self.refresh_token
-                save_config(config)
-            except Exception as e:
-                print(f"Warning: could not persist refreshed Strava tokens: {e}")
-
+            
+            # Persist updated tokens
+            self._persist_tokens()
             return True
         return False
 

@@ -89,6 +89,22 @@ xiaomi_collector = XiaomiBandCollector()
 # Pydantic models
 # ---------------------------------------------------------------------------
 
+class Activity(BaseModel):
+    """Activity model for external sync"""
+    id: Optional[int] = None
+    name: str
+    type: str
+    start_date: str
+    distance: Optional[float] = 0
+    moving_time: int = 0
+    average_heartrate: Optional[float] = None
+    max_heartrate: Optional[float] = None
+    calories: Optional[float] = None
+    is_crossfit: bool = False
+    is_walking: bool = False
+    strava_id: Optional[int] = None
+
+
 class CrossFitWorkout(BaseModel):
     wod_name: str
     date: str
