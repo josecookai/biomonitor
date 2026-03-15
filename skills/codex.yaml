@@ -1,0 +1,42 @@
+# Codex CLI configuration for BioMonitor
+version: "1.0"
+project: biomonitor
+description: "Personal health dashboard — Strava, Oura, WHOOP, Apple Health, Xiaomi"
+
+# Tell Codex which files contain the agent instructions
+instructions:
+  - AGENTS.md
+
+# Auto-approve these safe read operations
+auto_approve:
+  - read
+  - grep
+  - list
+
+# Require confirmation for these
+confirm:
+  - write
+  - edit
+  - bash_exec
+
+# Key entry points
+entrypoints:
+  backend: "python api_server.py"
+  frontend: "cd dashboard/web && npm run dev"
+  test: "python -m pytest tests/ -v"
+  demo: "python setup_demo.py"
+
+# Environment hints
+env_hints:
+  BIOMONITOR_API_KEY: "Optional. Set to protect all endpoints."
+  BIOMONITOR_HOST: "Default: 127.0.0.1. Set to 0.0.0.0 for network access."
+  BIOMONITOR_PORT: "Default: 8000"
+  NEXT_PUBLIC_API_URL: "Default: http://localhost:8000"
+
+# File patterns Codex should understand
+file_patterns:
+  collectors: "collectors/*.py"
+  engine: "engine/*.py"
+  frontend_pages: "dashboard/web/app/**/page.tsx"
+  user_profiles: "users/data/*.yaml"
+  api_docs: "docs/*.md"
