@@ -1,195 +1,346 @@
 # BioMonitor
 
-Personal health metrics tracking skill for OpenClaw. Monitor your CrossFit, walking, and Apple Watch data in one beautiful dashboard.
+BioMonitor is a personal health dashboard that aggregates your fitness and wellness data from multiple sources in one beautiful interface. Track CrossFit workouts, Apple Watch metrics, and Strava activities with integrated analytics and shareable reports.
 
-> 🎨 **UI Design Inspiration**: [Endless Miles](https://endless.wenxin.io/) - Clean, minimal, data-focused
+## Features
 
-## ✨ Features
+- **Multi-Source Data Integration** — Strava API, Apple Health via Health Auto Export webhook, manual CrossFit logging
+- **Real-time Metrics** — Heart rate, HRV, sleep quality, walking distance, training load
+- **CrossFit Tracking** — WOD logging, performance trends, PRs, RPE tracking
+- **Activity Calendar** — Visual heatmap of training activity
+- **Weekly Reports** — Automated summaries with stats and recovery data
+- **Shareable Cards** — Generate and export weekly summary images
+- **Optional API Authentication** — Secure with `BIOMONITOR_API_KEY` env var
 
-- 📊 **Training Journey Overview** - Total duration, activities, calories, and weekly workload
-- 🏋️ **CrossFit Tracking** - WOD logging, PR records, time trends
-- 🍎 **Apple Watch Integration** - Heart rate, HRV, sleep, recovery data, and payload samples
-- 📅 **Activity Calendar** - GitHub-style heatmap of your training
-- 📤 **Shareable Reports** - Generate beautiful summary cards
-- 🔌 **Multi-Platform** - Strava, Apple Health, and more coming soon
-
----
-
-## 🏗️ Architecture
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                Data Sources                                 │
-├──────────────┬──────────────┬──────────────┬──────────────┬────────────────┤
-│ Apple Watch  │    Strava    │   Garmin     │   Concept2   │ Future Wellness │
-│  (HealthKit) │     API      │  (Planned)   │  (Planned)   │   Connectors    │
-└──────┬───────┴──────┬───────┴──────┬───────┴──────┬───────┴────────┬───────┘
-       └───────────────┴───────────────┴──────────────┴────────────────┘
-                                      ▼
-                        ┌─────────────────────────────┐
-                        │  Connector / Ingestion Hub  │
-                        │ normalization + webhooks    │
-                        └──────────────┬──────────────┘
-                                       ▼
-                        ┌─────────────────────────────┐
-                        │       FastAPI Backend       │  ← api_server.py
-                        │       metrics + APIs        │
-                        └──────────────┬──────────────┘
-                                       ▼
-                        ┌─────────────────────────────┐
-                        │  SQLite / Future TSDB slot  │
-                        └──────────────┬──────────────┘
-                                       ▼
-                        ┌─────────────────────────────┐
-                        │      Next.js Dashboard      │  ← dashboard/web
-                        │  overview + recovery + UX   │
-                        └─────────────────────────────┘
+Data Sources (Strava, Apple Health, Manual)
+           ↓
+   FastAPI Backend (Python)
+           ↓
+   SQLite Database
+           ↓
+   Next.js Dashboard (React/TypeScript)
 ```
 
-### Future Wellness Connector Layer
-
-Reserved integration slots for the next phase:
-
-| Provider | Planned intake | Notes |
-|----------|----------------|-------|
-| Apple Watch | HealthKit / Health Auto Export webhook | Recovery, sleep, HRV, rings |
-| Garmin (Fenix / Epix / Forerunner) | Garmin Health API or partner sync export | Endurance load, training readiness |
-| Xiaomi Smart Band | Mi Fitness / Zepp export bridge | Budget wearable coverage |
-| Oura Ring | Oura Cloud API | Sleep, readiness, temperature |
-| WHOOP 4.0 | WHOOP Developer API | Strain, recovery, sleep debt |
-| Concept2 PM5 | Concept2 Logbook API / ErgData sync | Row, ski, bike erg sessions for HYROX |
-
-This connector layer is intentionally left open in the architecture so BioMonitor can evolve into a unified wellness graph instead of a Strava-only dashboard.
-
----
-
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
+
 - Python 3.10+
 - Node.js 18+
-- (Optional) Strava API credentials
+- Strava API credentials (optional, for workout sync)
 
-### 1. Clone & Setup
+### 1. Backend Setup
 
 ```bash
+# Clone repository
 git clone https://github.com/josecookai/biomonitor.git
 cd biomonitor
 
-# Load demo data
+# Install Python dependencies
+pip install fastapi uvicorn pandas sqlalchemy pyyaml requests
+
+# Load demo data (optional, for testing)
 python3 setup_demo.py
+
+# Start the API server
+python api_server.py
 ```
 
-### 2. Install Dependencies
+The API will be available at `http://localhost:8000` with auto-generated docs at `http://localhost:8000/docs`.
+
+### 2. Frontend Setup
 
 ```bash
-# Python backend
-pip install -r requirements.txt
-
-# Frontend
 cd dashboard/web
 npm install
-```
-
-### 3. Start the Servers
-
-Terminal 1 - Backend:
-```bash
-python3 api_server.py
-# API: http://localhost:8000
-# Docs: http://localhost:8000/docs
-```
-
-Terminal 2 - Frontend:
-```bash
-cd dashboard/web
 npm run dev
-# Dashboard: http://localhost:3000
 ```
 
-### 4. Sync Your Data
+The dashboard will be available at `http://localhost:3000`.
+
+### 3. (Optional) Configure Strava Sync
+
+Create `config.yaml` in the project root:
+
+```yaml
+strava:
+  client_id: "your_strava_client_id"
+  client_secret: "your_strava_client_secret"
+  access_token: "your_strava_access_token"
+  refresh_token: "your_strava_refresh_token"
+
+apple_health:
+  export_path: "/tmp/apple_health_exports"
+```
+
+Then sync data:
 
 ```bash
-# Strava sync (configure token first)
-python main.py sync --source strava
-
-# Manual CrossFit logging
-python main.py log --wod "Fran" --time "4:52" --rpe 8
+curl -X POST "http://localhost:8000/api/strava/sync?days=30"
 ```
 
----
+## Environment Variables
 
-## 📊 Dashboard Pages
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BIOMONITOR_API_KEY` | (unset) | Optional API key for authentication. If unset, API is public. |
+| `BIOMONITOR_HOST` | `127.0.0.1` | Server bind address |
+| `BIOMONITOR_PORT` | `8000` | Server port |
 
-| Page | URL | Description |
-|------|-----|-------------|
-| **Home** | `/` | Training journey overview with big stats |
-| **Activity** | `/activity` | Detailed CrossFit & walking analysis |
-| **Recovery** | `/recovery` | Apple Watch data: HR, HRV, sleep, payload formats |
-| **Share** | `/share` | Generate and export summary cards |
+Example:
 
----
+```bash
+export BIOMONITOR_API_KEY="your-secret-key"
+export BIOMONITOR_HOST="0.0.0.0"
+export BIOMONITOR_PORT="8000"
+python api_server.py
+```
 
-## 🍎 Apple Watch Integration
+When `BIOMONITOR_API_KEY` is set, all requests (except `/api/health` and `/docs`) must include the header:
 
-### Supported Data
-- ✅ **Activity**: Workouts, calories, distance
-- ✅ **Heart Rate**: Resting HR, HRV, zones
-- ✅ **Sleep**: Duration, stages, efficiency
-- ✅ **Recovery**: Training readiness, temperature
-- ✅ **Export Formats**: Health Auto Export JSON payload examples
+```
+X-API-Key: your-secret-key
+```
 
-### Setup
-1. Install [Health Auto Export](https://apps.apple.com/app/health-auto-export/id1115567069) on iPhone
-2. Configure Webhook: `http://your-server:8000/api/apple-health/webhook`
-3. Select data types to sync
-4. Enable automatic push
+## API Reference
 
-📖 **Full Guide**: [docs/APPLE_WATCH_DATA.md](docs/APPLE_WATCH_DATA.md)
+All endpoints return JSON. When `BIOMONITOR_API_KEY` is configured, include `X-API-Key` header on all requests except those listed as "Public".
 
----
+### Health & Status
 
-## 🔌 Hardware Integration Roadmap
+| Endpoint | Method | Public | Description |
+|----------|--------|--------|-------------|
+| `/api/health` | GET | Yes | Health check, returns `{"status": "ok"}` |
 
-### ✅ Supported Now
-- Apple Watch (Series 3+)
-- Strava
-
-### 🚧 In Development
-- **Garmin**: Fenix, Epix, Forerunner series
-- **Concept2 PM5**: RowErg, SkiErg, BikeErg (Hyrox support!)
-
-### 📋 Planned
-- **Xiaomi**: Mi Band 9, Watch S3/S4
-- **Oura Ring**: Sleep & recovery scores
-- **WHOOP 4.0**: Strain & recovery tracking
-
-🏆 **Hyrox Special**: Concept2 integration for 8x1km + 8 workstation race analysis
-
-📖 **Full Roadmap**: [docs/HARDWARE_ROADMAP.md](docs/HARDWARE_ROADMAP.md)
-
----
-
-## 🔌 API Endpoints
+### Activities
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/health` | GET | Health check |
-| `/api/activities` | GET | List activities (with filters) |
-| `/api/stats/current-week` | GET | Current week statistics |
-| `/api/daily` | GET | Daily aggregated data |
-| `/api/crossfit/workouts` | GET | List CrossFit workouts |
-| `/api/crossfit/log` | POST | Log a CrossFit workout |
-| `/api/apple-health/webhook` | POST | Receive Apple Health data |
-| `/api/health-metrics/latest` | GET | Latest Apple Watch-style recovery snapshot |
-| `/api/apple-health/formats` | GET | Sample Apple Watch / Health Auto Export payload formats |
-| `/api/share/card` | GET | Get share card data |
+| `/api/activities?limit=30&activity_type=crossfit\|walking` | GET | List activities, optionally filtered by type |
+| `/api/daily?days=30` | GET | Daily aggregated data (CrossFit count, walking distance) |
+| `/api/stats/current-week` | GET | Current week statistics (sessions, distance, time) |
+| `/api/stats/weekly?weeks=4` | GET | Last N weeks of aggregated stats |
 
----
+### CrossFit Workouts
 
-## ⚙️ Configuration
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/crossfit/workouts?limit=10` | GET | Recent CrossFit workouts |
+| `/api/crossfit/log` | POST | Log a new CrossFit workout |
 
-Create `config.yaml` in the project root:
+**Request body for POST `/api/crossfit/log`:**
+
+```json
+{
+  "wod_name": "Fran",
+  "date": "2026-03-15T10:30:00",
+  "time": "4:52",
+  "rounds": 21,
+  "reps": 45,
+  "weight": null,
+  "rpe": 8,
+  "notes": "Felt strong today"
+}
+```
+
+### Strava Integration
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/strava/sync?days=30` | POST | Sync activities from Strava (last N days) |
+| `/api/strava/stats` | GET | Strava connection status |
+
+### Apple Health Integration
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/apple-health/webhook` | POST | Receive Health Auto Export data |
+| `/api/health-metrics/latest` | GET | Latest health metrics (HR, HRV, sleep) |
+| `/api/health-metrics/history?days=30&metric_type=HeartRateVariability` | GET | Health metrics history |
+
+### Share & Reports
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/share/card` | GET | Generate data for weekly summary card |
+
+## Data Sources Setup
+
+### Strava
+
+1. Create a Strava application: https://www.strava.com/settings/api
+2. Authorize your app to access your account
+3. Copy `Client ID`, `Client Secret`, `Access Token`, and `Refresh Token` to `config.yaml`
+4. Sync activities via API or CLI:
+
+```bash
+curl -X POST "http://localhost:8000/api/strava/sync?days=30" \
+  -H "X-API-Key: your-key"
+```
+
+### Apple Health (Health Auto Export)
+
+Health Auto Export is a third-party iOS app that exports Apple Health data via webhook.
+
+1. Install **Health Auto Export** from [App Store](https://apps.apple.com/app/health-auto-export/id1115567069)
+2. Open the app and configure the webhook:
+   - **URL:** `http://your-domain:8000/api/apple-health/webhook`
+   - **Method:** POST
+3. Select data types to export (Heart Rate, HRV, Sleep, etc.)
+4. Enable automatic periodic push or push manually
+5. Data will be saved to the database automatically
+
+Example webhook request (from Health Auto Export):
+
+```bash
+curl -X POST "http://localhost:8000/api/apple-health/webhook" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{
+    "data": [
+      {
+        "type": "HKQuantityTypeIdentifierHeartRateVariability",
+        "value": 45.2,
+        "unit": "ms",
+        "date": "2026-03-15T10:00:00Z"
+      }
+    ]
+  }'
+```
+
+## Self-Hosting
+
+### Basic Deployment (Linux/Docker)
+
+```bash
+# Ensure Python 3.10+ is installed
+python3 --version
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Start backend (production)
+BIOMONITOR_API_KEY="your-secret-key" \
+BIOMONITOR_HOST="0.0.0.0" \
+BIOMONITOR_PORT="8000" \
+python api_server.py
+```
+
+### Docker Setup
+
+Create `Dockerfile`:
+
+```dockerfile
+FROM python:3.10-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY . .
+CMD ["python", "api_server.py"]
+```
+
+Build and run:
+
+```bash
+docker build -t biomonitor .
+docker run -p 8000:8000 \
+  -e BIOMONITOR_API_KEY="your-key" \
+  -e BIOMONITOR_HOST="0.0.0.0" \
+  -v /data/biomonitor.db:/app/biomonitor.db \
+  biomonitor
+```
+
+### Systemd Service
+
+Create `/etc/systemd/system/biomonitor.service`:
+
+```ini
+[Unit]
+Description=BioMonitor API Server
+After=network.target
+
+[Service]
+Type=simple
+User=biomonitor
+WorkingDirectory=/home/biomonitor/app
+EnvironmentFile=/home/biomonitor/.env
+ExecStart=/usr/bin/python3 /home/biomonitor/app/api_server.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+sudo systemctl enable biomonitor
+sudo systemctl start biomonitor
+sudo systemctl status biomonitor
+```
+
+## Project Structure
+
+```
+biomonitor/
+├── api_server.py              # FastAPI application
+├── main.py                    # CLI interface
+├── setup_demo.py              # Demo data generator
+├── config.yaml                # Config (not in git)
+├── biomonitor.db              # SQLite database
+│
+├── collectors/                # Data collection
+│   ├── __init__.py           # Strava, Apple Health collectors
+│
+├── processors/                # Data analysis
+│   └── __init__.py           # Metrics calculator
+│
+├── storage/                   # Database layer
+│   └── __init__.py           # BioDatabase class
+│
+├── docs/                      # Documentation
+│   ├── APPLE_WATCH_DATA.md
+│   └── HARDWARE_ROADMAP.md
+│
+├── dashboard/
+│   └── web/                   # Next.js frontend
+│       ├── app/               # Pages
+│       ├── lib/               # API client
+│       └── package.json
+│
+└── README.md
+```
+
+## Troubleshooting
+
+**API not responding:**
+- Check if API is running: `curl http://localhost:8000/api/health`
+- Verify port 8000 is not in use: `lsof -i :8000`
+- Check logs for errors
+
+**Strava sync returns 401:**
+- Access token has expired
+- Refresh token in `config.yaml` is invalid
+- Re-authorize the app at https://www.strava.com/settings/api
+
+**No data showing in dashboard:**
+- Run `python3 setup_demo.py` to load sample data
+- Check `/api/activities` endpoint to verify data exists
+- Ensure frontend can reach API at `http://localhost:8000`
+
+**Apple Health webhook not receiving data:**
+- Verify webhook URL is correct in Health Auto Export app
+- Check API logs for incoming requests
+- Ensure `X-API-Key` header is set if authentication is enabled
+- Verify Health Auto Export app has permission to read health data
+
+## Configuration Reference
+
+### `config.yaml`
 
 ```yaml
 strava:
@@ -198,75 +349,48 @@ strava:
   access_token: "your_access_token"
   refresh_token: "your_refresh_token"
 
-dashboard:
-  port: 3000
-  host: "localhost"
+apple_health:
+  export_path: "/tmp/apple_health_exports"
+  webhook_enabled: true
 ```
 
----
+All values are optional. If not set, features are disabled.
 
-## 🗂️ Project Structure
+## Development
 
+### CLI Commands
+
+```bash
+# Sync Strava data
+python main.py sync --source strava --days 30
+
+# Log CrossFit workout
+python main.py log --wod "Fran" --time "4:52" --rpe 8
+
+# Generate weekly report
+python main.py report
+
+# Check configuration
+python main.py config
+
+# Strava status
+python main.py strava status
 ```
-biomonitor/
-├── api_server.py              # FastAPI backend
-├── main.py                    # CLI entry point
-├── setup_demo.py              # One-click demo data
-├── SKILL.md                   # OpenClaw skill manifest
-├── DEMO_GUIDE.md              # Presentation guide
-├── requirements.txt           # Python dependencies
-├── config.yaml                # Configuration (not in git)
-├── collectors/                # Data collection modules
-├── processors/                # Data analysis
-├── storage/                   # Database layer
-├── docs/                      # Documentation
-└── dashboard/
-    └── web/                   # Next.js frontend
-        ├── app/               # Pages
-        └── lib/api.ts         # API client
-```
 
----
+### Database Schema
 
-## 📈 Development Roadmap
+- `activities` — Strava activities with metadata
+- `crossfit_workouts` — Manually logged CrossFit sessions
+- `health_metrics` — Apple Health data (HR, HRV, sleep)
+- `daily_summaries` — Aggregated daily stats
+- `settings` — App configuration
 
-### Phase 1: MVP ✅
-- [x] Strava data sync
-- [x] CrossFit workout logging
-- [x] Dashboard with Next.js
-- [x] Real-time metrics
-- [x] Shareable cards
-- [x] Demo data setup
+## License
 
-### Phase 2: Automation 🚧
-- [ ] Apple Health auto-sync (Webhook)
-- [ ] CrossFit auto-detection from HR data
-- [ ] Playwright screenshot generation
-- [ ] Vercel deployment ready
+MIT License — see LICENSE file for details
 
-### Phase 3: Multi-Platform 🔌
-- [ ] Garmin Connect integration
-- [ ] Concept2 PM5 support (Hyrox!)
-- [ ] Xiaomi / Mi Band support
-- [ ] Oura Ring integration
-- [ ] WHOOP 4.0 integration
+## Acknowledgments
 
-### Phase 4: Social 👥
-- [ ] Multi-user support
-- [ ] Family & friend groups
-- [ ] Challenges and rankings
-- [ ] Public profile pages
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-### Adding New Hardware Support
-
-1. Create a new collector in `collectors/`
-2. Implement the `BaseCollector` interface
-3. Add data mapping to unified schema
-4. Update [HARDWARE_ROADMAP.md](docs/HARDWARE_ROADMAP.md)
-5. Submit a PR!
+- UI design inspired by [Endless Miles](https://endless.wenxin.io/)
+- Built with FastAPI, Next.js, SQLite, and React
+- Integrations: Strava API, Apple Health Auto Export

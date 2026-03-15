@@ -1,0 +1,52 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    # Only deploy when CI passed
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ---------------------------------------------------------------
+      # Add your real deployment steps below.
+      # Uncomment and configure the option that matches your stack.
+      # ---------------------------------------------------------------
+
+      - name: Deployment placeholder
+        run: echo "CI passed — add real deploy steps here."
+
+      # --- Option A: Docker (build & push to a registry) -------------
+      # - name: Build Docker image
+      #   run: |
+      #     docker build -t ghcr.io/${{ github.repository }}/biomonitor:${{ github.sha }} .
+      #     docker push ghcr.io/${{ github.repository }}/biomonitor:${{ github.sha }}
+
+      # --- Option B: Backend on fly.io --------------------------------
+      # - name: Deploy backend (fly.io)
+      #   uses: superfly/flyctl-actions/setup-flyctl@master
+      # - run: fly deploy --remote-only
+      #   env:
+      #     FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # --- Option C: Frontend on Vercel -------------------------------
+      # - name: Deploy frontend (Vercel)
+      #   run: |
+      #     npm install -g vercel
+      #     vercel --prod --token=${{ secrets.VERCEL_TOKEN }} dashboard/web
+
+      # --- Option D: Backend on Railway --------------------------------
+      # - name: Deploy backend (Railway)
+      #   run: |
+      #     npm install -g @railway/cli
+      #     railway up --service biomonitor-api
+      #   env:
+      #     RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
