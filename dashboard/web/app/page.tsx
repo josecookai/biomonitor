@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { 
-  Activity, 
-  Heart, 
-  Footprints, 
+import {
+  Activity,
+  Heart,
+  Footprints,
   Dumbbell,
   Flame,
   Share2,
@@ -13,7 +13,9 @@ import {
   Trophy,
   Zap,
   TrendingUp,
-  Calendar
+  Calendar,
+  BellRing,
+  Pill
 } from 'lucide-react'
 import { 
   BarChart, 
@@ -28,7 +30,16 @@ import {
   Cell
 } from 'recharts'
 import Link from 'next/link'
-import { getActivities, getStats, getDailyData, getShareCard } from '@/lib/api'
+import {
+  getActivities,
+  getStats,
+  getDailyData,
+  getShareCard,
+  type ActivityItem,
+  type WeekStats,
+  type DailyDataPoint,
+  type ShareCardData
+} from '@/lib/api'
 
 // Big stat card component (inspired by endless.wenxin.io)
 function BigStatCard({ 
@@ -212,10 +223,11 @@ function CalendarHeatmap({ data }: { data: any[] }) {
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true)
-  const [stats, setStats] = useState<any>(null)
-  const [activities, setActivities] = useState<any[]>([])
-  const [dailyData, setDailyData] = useState<any[]>([])
-  const [shareData, setShareData] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [stats, setStats] = useState<WeekStats | null>(null)
+  const [activities, setActivities] = useState<ActivityItem[]>([])
+  const [dailyData, setDailyData] = useState<{ day: string; crossfit: number; walking: number }[]>([])
+  const [shareData, setShareData] = useState<ShareCardData | null>(null)
 
   useEffect(() => {
     async function loadData() {
@@ -226,13 +238,13 @@ export default function Dashboard() {
           getDailyData(7),
           getShareCard()
         ])
-        
+
         setStats(statsData)
         setActivities(acts)
-        
+
         // Transform daily data for chart
         const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-        const chartData = daily.map((d: any) => {
+        const chartData = daily.map((d: DailyDataPoint) => {
           const date = new Date(d.date)
           return {
             day: dayNames[date.getDay()],
@@ -242,13 +254,14 @@ export default function Dashboard() {
         })
         setDailyData(chartData)
         setShareData(share)
-      } catch (error) {
-        console.error('Failed to load data:', error)
+      } catch (err) {
+        console.error('Failed to load data:', err)
+        setError('Failed to load dashboard data. Please check your connection and try again.')
       } finally {
         setLoading(false)
       }
     }
-    
+
     loadData()
   }, [])
 
@@ -259,6 +272,26 @@ export default function Dashboard() {
   const totalCalories = activities.reduce((acc, a) => acc + (a.calories || a.moving_time * 0.1), 0)
   const crossFitCount = activities.filter(a => a.is_crossfit).length
   const walkingCount = activities.filter(a => a.is_walking).length
+
+  if (error) {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center max-w-md px-4">
+          <div className="p-4 bg-red-500/10 rounded-2xl inline-flex mb-4">
+            <Activity className="w-8 h-8 text-red-500" />
+          </div>
+          <h2 className="text-xl font-bold text-foreground mb-2">Unable to Load Data</h2>
+          <p className="text-muted-foreground mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition"
+          >
+            Retry
+          </button>
+        </div>
+      </main>
+    )
+  }
 
   return (
     <main className="min-h-screen bg-background">
@@ -275,12 +308,26 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground">Personal Health Dashboard</p>
               </div>
             </div>
-            <Link href="/share">
-              <button className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition">
-                <Share2 className="w-4 h-4" />
-                <span className="text-sm font-medium">Share</span>
-              </button>
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link href="/supplements">
+                <button className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition">
+                  <Pill className="w-4 h-4" />
+                  <span className="text-sm font-medium">Supplements</span>
+                </button>
+              </Link>
+              <Link href="/reminders">
+                <button className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition">
+                  <BellRing className="w-4 h-4" />
+                  <span className="text-sm font-medium">Reminders</span>
+                </button>
+              </Link>
+              <Link href="/share">
+                <button className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition">
+                  <Share2 className="w-4 h-4" />
+                  <span className="text-sm font-medium">Share</span>
+                </button>
+              </Link>
+            </div>
           </div>
         </div>
       </header>
@@ -400,8 +447,8 @@ export default function Dashboard() {
             </div>
           ) : recentActivities.length > 0 ? (
             <div className="space-y-4">
-              {recentActivities.map((activity, i) => (
-                <div key={i} className="flex items-center justify-between py-3 border-b border-border last:border-0">
+              {recentActivities.map((activity) => (
+                <div key={activity.id} className="flex items-center justify-between py-3 border-b border-border last:border-0">
                   <div className="flex items-center gap-4">
                     <div className={`p-2 rounded-lg ${
                       activity.is_crossfit ? 'bg-orange-500/20' : 

@@ -5,7 +5,9 @@
 ### 1. 启动后端 API
 ```bash
 cd /path/to/biomonitor
-python api_server.py
+pip install -r requirements.txt  # 如果还没安装 Python 依赖
+python3 setup_demo.py
+python3 api_server.py
 ```
 API 将在 http://localhost:8000 运行
 
@@ -20,7 +22,7 @@ Dashboard 将在 http://localhost:3000 运行
 ## 📊 Demo 数据
 
 已预置演示数据：
-- **CrossFit**: 2 次 (Fran 4:52, Grace 3:15)
+- **CrossFit**: 3 次 (Fran 4:52, Grace 3:15, Murph 42:30)
 - **步行**: 7.5 km (3 次)
 - **心率数据**: 平均 125 bpm
 
