@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from storage import BioDatabase
 from processors import MetricsCalculator
-from collectors import StravaCollector, AppleHealthCollector
+from collectors import StravaCollector, AppleHealthCollector, OuraCollector, WhoopCollector, XiaomiBandCollector
 
 app = FastAPI(
     title="BioMonitor API",
@@ -67,6 +67,9 @@ async def auth_middleware(request: Request, call_next):
 db = BioDatabase()
 strava_collector = StravaCollector()
 apple_collector = AppleHealthCollector()
+oura_collector = OuraCollector()
+whoop_collector = WhoopCollector()
+xiaomi_collector = XiaomiBandCollector()
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +91,21 @@ class HealthAutoExportData(BaseModel):
     """Health Auto Export webhook data"""
     data: List[Dict[str, Any]]
     metadata: Optional[Dict] = None
+
+
+class XiaomiExportData(BaseModel):
+    """Mi Fitness or Gadgetbridge export data (JSON array)"""
+    format: str  # "gadgetbridge" or "mi_fitness"
+    data: List[Dict[str, Any]]
+
+
+class XiaomiWebhookData(BaseModel):
+    """Real-time payload from Gadgetbridge HTTP server plugin"""
+    timestamp: Optional[int] = None
+    heart_rate: Optional[int] = None
+    steps: Optional[int] = None
+    battery: Optional[int] = None
+    activity: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -363,6 +381,176 @@ def get_apple_health_formats():
     }
 
 
+# ========== OURA RING (Carl) ==========
+
+@app.post("/api/oura/sync")
+def sync_oura(days: int = Field(default=7, ge=1, le=90)):
+    """Sync Oura Ring data for Carl"""
+    try:
+        counts = oura_collector.sync_to_database(db, days)
+        if "skipped" in counts:
+            raise HTTPException(status_code=503, detail=counts["skipped"])
+        return {
+            "success": True,
+            "days": days,
+            "synced": counts,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Oura sync failed: {str(exc)}")
+
+
+@app.get("/api/oura/readiness")
+def get_oura_readiness(days: int = Field(default=7, ge=1, le=90)):
+    """Get Oura readiness scores from the database"""
+    records = db.get_health_metrics_history(days=days, metric_type="OuraReadiness")
+    return {
+        "days": days,
+        "metric_type": "OuraReadiness",
+        "data": records,
+    }
+
+
+@app.get("/api/oura/sleep")
+def get_oura_sleep(days: int = Field(default=7, ge=1, le=90)):
+    """Get Oura sleep data from the database (score + duration)"""
+    scores = db.get_health_metrics_history(days=days, metric_type="OuraSleepScore")
+    durations = db.get_health_metrics_history(days=days, metric_type="OuraSleepDuration")
+    return {
+        "days": days,
+        "scores": scores,
+        "durations": durations,
+    }
+
+
+# ========== XIAOMI MI BAND (Zelda) ==========
+
+@app.post("/api/xiaomi/upload")
+async def upload_xiaomi_export(file_content: XiaomiExportData):
+    """
+    Accept Mi Fitness or Gadgetbridge export data.
+
+    Send a JSON body with:
+    - format: "gadgetbridge" or "mi_fitness"
+    - data: array of record objects
+
+    The payload is saved to disk and all recognised metrics are written to
+    the health_metrics table.
+    """
+    try:
+        import tempfile, json as _json
+
+        fmt = file_content.format.lower().strip()
+        if fmt not in ("gadgetbridge", "mi_fitness"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown format '{fmt}'. Use 'gadgetbridge' or 'mi_fitness'.",
+            )
+
+        # Write the records to a temp file so the collector can parse them
+        suffix = ".csv" if fmt == "mi_fitness" else ".json"
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=suffix, delete=False, encoding="utf-8"
+        ) as tmp:
+            if fmt == "mi_fitness":
+                import csv as _csv, io as _io
+                if file_content.data:
+                    fieldnames = list(file_content.data[0].keys())
+                    out = _io.StringIO()
+                    writer = _csv.DictWriter(out, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(file_content.data)
+                    tmp.write(out.getvalue())
+            else:
+                _json.dump(file_content.data, tmp)
+            tmp_path = tmp.name
+
+        saved = xiaomi_collector.sync_to_database(db, tmp_path)
+
+        import os as _os
+        try:
+            _os.unlink(tmp_path)
+        except OSError:
+            pass
+
+        total = sum(saved.values())
+        return {
+            "success": True,
+            "format": fmt,
+            "records_saved": total,
+            "breakdown": saved,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Upload processing failed: {str(exc)}")
+
+
+@app.post("/api/xiaomi/webhook")
+def xiaomi_gadgetbridge_webhook(data: XiaomiWebhookData):
+    """
+    Receive real-time data from the Gadgetbridge HTTP server plugin.
+
+    Configure Gadgetbridge:
+      Settings -> HTTP server -> Enable
+      URL: http://YOUR_SERVER_IP:8000/api/xiaomi/webhook
+    """
+    try:
+        payload = data.dict(exclude_none=False)
+
+        # Persist raw payload for replay / audit
+        xiaomi_collector.save_gadgetbridge_webhook(payload)
+
+        # Parse and save to DB
+        metrics = xiaomi_collector.parse_gadgetbridge_webhook(payload)
+
+        saved_count = 0
+        for category, records in metrics.items():
+            for record in records:
+                db.save_health_metric(
+                    {
+                        "date": record.get("date"),
+                        "metric_type": record.get("type", category),
+                        "value": record.get("value"),
+                        "unit": record.get("unit", ""),
+                        "source": "xiaomi_band",
+                    }
+                )
+                saved_count += 1
+
+        return {
+            "success": True,
+            "records_saved": saved_count,
+            "battery": data.battery,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Webhook processing failed: {str(exc)}")
+
+
+@app.get("/api/xiaomi/stats")
+def get_xiaomi_stats(days: int = Field(default=7, ge=1, le=90)):
+    """Get Xiaomi Mi Band metrics from the database."""
+    metric_types = [
+        "StepCount",
+        "HeartRate",
+        "SleepAnalysis",
+        "ActiveEnergyBurned",
+    ]
+
+    result: Dict[str, Any] = {"days": days, "source": "xiaomi_band"}
+    for mt in metric_types:
+        history = db.get_health_metrics_history(days=days, metric_type=mt)
+        # Filter to xiaomi_band source only when possible
+        xiaomi_records = [
+            r for r in history
+            if isinstance(r, dict) and r.get("source") == "xiaomi_band"
+        ] or history  # fall back to all sources if source field not stored
+        result[mt] = xiaomi_records
+
+    return result
+
+
 @app.get("/api/share/card")
 def generate_share_card():
     """Generate data for share card"""
@@ -381,6 +569,93 @@ def generate_share_card():
         "hrv": health.get('hrv'),
         "resting_hr": health.get('resting_hr')
     }
+
+
+# ========== WHOOP (ZN) ==========
+
+
+class WhoopCallbackRequest(BaseModel):
+    code: str
+
+
+@app.get("/api/whoop/auth-url")
+def get_whoop_auth_url():
+    """Return the OAuth 2.0 authorization URL for ZN to connect WHOOP.
+
+    The user visits this URL in a browser, authorizes BioMonitor, and is
+    redirected to /api/whoop/callback with an authorization code.
+
+    Example:
+        https://api.prod.whoop.com/oauth/oauth2/auth?client_id=...
+        &redirect_uri=http://localhost:8000/api/whoop/callback
+        &scope=read:recovery%20read:sleep%20read:workout%20read:cycles%20read:body_measurement
+        &response_type=code
+    """
+    if not whoop_collector.client_id:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "WHOOP client_id is not configured. "
+                "Add whoop.client_id and whoop.client_secret to config.yaml."
+            ),
+        )
+    return {"auth_url": whoop_collector.get_authorization_url()}
+
+
+@app.post("/api/whoop/callback")
+def whoop_oauth_callback(body: WhoopCallbackRequest):
+    """Exchange an OAuth authorization code for WHOOP access + refresh tokens.
+
+    After authorizing in the browser, copy the 'code' query parameter from
+    the redirect URL and POST it here:
+
+        curl -X POST http://localhost:8000/api/whoop/callback \\
+             -H 'Content-Type: application/json' \\
+             -d '{"code": "YOUR_CODE_HERE"}'
+
+    Tokens are persisted to config.yaml automatically.
+    """
+    success = whoop_collector.exchange_code_for_tokens(body.code)
+    if not success:
+        raise HTTPException(
+            status_code=400,
+            detail="Token exchange failed. Check your client_id, client_secret, and that the code has not expired.",
+        )
+    return {"success": True, "message": "WHOOP tokens saved. You can now sync data."}
+
+
+@app.post("/api/whoop/sync")
+def sync_whoop(days: int = Field(default=7, ge=1, le=90)):
+    """Sync WHOOP data for ZN (recovery, sleep, strain).
+
+    Fetches the last *days* of WHOOP data and saves it to the health_metrics
+    table. The access token is refreshed automatically if it has expired.
+
+    Returns a dict of metric_type -> count of records saved.
+    """
+    try:
+        counts = whoop_collector.sync_to_database(db, days)
+        return {"success": True, "days": days, "saved": counts}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"WHOOP sync failed: {str(exc)}")
+
+
+@app.get("/api/whoop/recovery")
+def get_whoop_recovery(days: int = Field(default=7, ge=1, le=90)):
+    """Get WHOOP recovery scores from the database.
+
+    Returns records of metric_type='WhoopRecovery' for the last *days* days.
+    """
+    return db.get_health_metrics_history(days=days, metric_type="WhoopRecovery")
+
+
+@app.get("/api/whoop/strain")
+def get_whoop_strain(days: int = Field(default=7, ge=1, le=90)):
+    """Get WHOOP strain scores from the database.
+
+    Returns records of metric_type='WhoopStrain' for the last *days* days.
+    """
+    return db.get_health_metrics_history(days=days, metric_type="WhoopStrain")
 
 
 if __name__ == "__main__":

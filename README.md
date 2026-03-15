@@ -352,6 +352,9 @@ strava:
 apple_health:
   export_path: "/tmp/apple_health_exports"
   webhook_enabled: true
+
+oura:
+  access_token: YOUR_OURA_PERSONAL_ACCESS_TOKEN
 ```
 
 All values are optional. If not set, features are disabled.

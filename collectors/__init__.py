@@ -286,5 +286,18 @@ class CrossFitLogger:
         return summary.get('crossfit_sessions', 0)
 
 
+from .oura import OuraCollector
+from .whoop import WhoopCollector
+from .xiaomi import XiaomiBandCollector
+
+
 # Export all collectors
-__all__ = ['StravaCollector', 'AppleHealthCollector', 'CrossFitLogger', 'load_config']
+__all__ = [
+    'StravaCollector',
+    'AppleHealthCollector',
+    'CrossFitLogger',
+    'OuraCollector',
+    'WhoopCollector',
+    'XiaomiBandCollector',
+    'load_config',
+]
