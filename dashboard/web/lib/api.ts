@@ -42,3 +42,9 @@ export const logCrossFitWorkout = (workout: any) =>
 
 export const getShareCard = () => 
   fetchAPI('/api/share/card')
+
+export const getLatestHealthMetrics = () =>
+  fetchAPI('/api/health-metrics/latest')
+
+export const getAppleHealthFormats = () =>
+  fetchAPI('/api/apple-health/formats')

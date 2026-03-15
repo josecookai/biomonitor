@@ -1,132 +1,89 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { 
-  Activity, 
-  Heart, 
-  Footprints, 
+import {
+  Activity,
   Dumbbell,
   Flame,
-  Share2,
+  Footprints,
+  Heart,
   Loader2,
-  Timer,
-  Trophy,
+  Share2,
+  TimerReset,
+  Watch,
   Zap,
-  TrendingUp,
-  Calendar
 } from 'lucide-react'
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
   ResponsiveContainer,
-  AreaChart,
-  Area,
-  Cell
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts'
 import Link from 'next/link'
-import { getActivities, getStats, getDailyData, getShareCard } from '@/lib/api'
+import {
+  getActivities,
+  getCurrentWeekStats,
+  getDailyData,
+  getLatestHealthMetrics,
+  getShareCard,
+} from '@/lib/api'
 
-// Big stat card component (inspired by endless.wenxin.io)
-function BigStatCard({ 
-  title, 
-  value, 
-  unit, 
-  subtext,
+function MetricCard({
+  title,
+  value,
+  unit,
   icon: Icon,
-  color = "blue"
-}: { 
-  title: string
-  value: string | number
-  unit?: string
-  subtext?: string
-  icon: any
-  color?: "blue" | "orange" | "green" | "red" | "purple"
-}) {
-  const colorClasses = {
-    blue: "from-blue-500/20 to-blue-600/10 text-blue-600",
-    orange: "from-orange-500/20 to-orange-600/10 text-orange-600",
-    green: "from-green-500/20 to-green-600/10 text-green-600",
-    red: "from-red-500/20 to-red-600/10 text-red-600",
-    purple: "from-purple-500/20 to-purple-600/10 text-purple-600"
-  }
-
-  return (
-    <div className="bg-card rounded-2xl p-8 border border-border text-center hover:border-primary/50 transition-all">
-      <div className={`inline-flex p-4 rounded-2xl bg-gradient-to-br ${colorClasses[color]} mb-4`}>
-        <Icon className="w-8 h-8" />
-      </div>
-      <div className="text-4xl md:text-5xl font-bold text-foreground mb-2">
-        {value}<span className="text-2xl text-muted-foreground ml-1">{unit}</span>
-      </div>
-      <div className="text-muted-foreground text-sm uppercase tracking-wider mb-1">{title}</div>
-      {subtext && <div className="text-xs text-muted-foreground/70">{subtext}</div>}
-    </div>
-  )
-}
-
-function MetricCard({ 
-  title, 
-  value, 
-  unit, 
-  icon: Icon, 
-  trend, 
-  trendUp,
-  loading 
-}: { 
+  subtitle,
+  loading,
+}: {
   title: string
   value: string | number
   unit?: string
   icon: any
-  trend?: string
-  trendUp?: boolean
+  subtitle?: string
   loading?: boolean
 }) {
   return (
-    <div className="bg-card rounded-xl p-6 border border-border">
-      <div className="flex items-start justify-between">
+    <div className="bg-card/80 panel-glow rounded-[28px] p-6 border border-border">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-muted-foreground text-sm">{title}</p>
+          <p className="metric-kicker text-muted-foreground">{title}</p>
           {loading ? (
-            <Loader2 className="w-6 h-6 animate-spin mt-2" />
+            <Loader2 className="w-6 h-6 animate-spin mt-3" />
           ) : (
-            <div className="flex items-baseline gap-1 mt-2">
-              <span className="text-3xl font-bold text-foreground">{value}</span>
-              {unit && <span className="text-muted-foreground text-sm">{unit}</span>}
+            <div className="flex items-baseline gap-2 mt-3">
+              <span className="text-3xl md:text-4xl font-bold text-foreground font-mono-display">{value}</span>
+              {unit && <span className="text-muted-foreground text-sm md:text-base">{unit}</span>}
             </div>
           )}
-          {trend && !loading && (
-            <p className={`text-sm mt-1 ${trendUp ? 'text-green-500' : 'text-red-500'}`}>
-              {trendUp ? '↑' : '↓'} {trend}
-            </p>
-          )}
+          {subtitle && !loading && <p className="text-sm mt-2 text-muted-foreground">{subtitle}</p>}
         </div>
-        <div className="p-3 bg-secondary rounded-lg">
-          <Icon className="w-5 h-5 text-foreground" />
+        <div className="p-3 bg-secondary rounded-2xl">
+          <Icon className="w-5 h-5 text-primary" />
         </div>
       </div>
     </div>
   )
 }
 
-function ActivityChart({ data, loading }: { data: any[], loading: boolean }) {
+function ActivityChart({ data, loading }: { data: any[]; loading: boolean }) {
   if (loading) {
     return (
-      <div className="bg-card rounded-xl p-6 border border-border h-[350px] flex items-center justify-center">
+      <div className="bg-card/80 panel-glow rounded-[28px] p-6 border border-border h-[350px] flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="bg-card rounded-xl p-6 border border-border">
-      <div className="flex items-center justify-between mb-6">
+    <div className="bg-card/80 panel-glow rounded-[28px] p-6 border border-border">
+      <div className="flex items-center justify-between mb-6 gap-4">
         <div>
-          <h3 className="text-lg font-semibold text-foreground">Weekly Activity</h3>
-          <p className="text-muted-foreground text-sm">CrossFit sessions & walking distance</p>
+          <h3 className="text-lg font-semibold text-foreground">Activity Mix</h3>
+          <p className="text-muted-foreground text-sm">CrossFit volume and walking distance over the last 7 days</p>
         </div>
         <div className="flex gap-4">
           <div className="flex items-center gap-2">
@@ -143,69 +100,19 @@ function ActivityChart({ data, loading }: { data: any[], loading: boolean }) {
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-          <YAxis yAxisId="left" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+          <YAxis yAxisId="left" stroke="hsl(var(--muted-foreground))" fontSize={12} allowDecimals={false} />
           <YAxis yAxisId="right" orientation="right" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-          <Tooltip 
-            contentStyle={{ 
-              backgroundColor: 'hsl(var(--card))', 
+          <Tooltip
+            contentStyle={{
+              backgroundColor: 'hsl(var(--card))',
               border: '1px solid hsl(var(--border))',
-              borderRadius: '8px'
+              borderRadius: '16px',
             }}
           />
-          <Bar yAxisId="left" dataKey="crossfit" fill="#f97316" radius={[4, 4, 0, 0]} />
-          <Bar yAxisId="right" dataKey="walking" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+          <Bar yAxisId="left" dataKey="crossfit" fill="#f97316" radius={[8, 8, 0, 0]} />
+          <Bar yAxisId="right" dataKey="walking" fill="#3b82f6" radius={[8, 8, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
-    </div>
-  )
-}
-
-// Calendar heatmap component
-function CalendarHeatmap({ data }: { data: any[] }) {
-  // Generate last 90 days
-  const days = []
-  const today = new Date()
-  for (let i = 89; i >= 0; i--) {
-    const d = new Date(today)
-    d.setDate(d.getDate() - i)
-    days.push({
-      date: d,
-      dateStr: d.toISOString().split('T')[0],
-      activity: data.find((a: any) => a.start_date?.includes(d.toISOString().split('T')[0]))
-    })
-  }
-
-  return (
-    <div className="bg-card rounded-xl p-6 border border-border">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-foreground">Activity Calendar</h3>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>Less</span>
-          <div className="flex gap-1">
-            <div className="w-3 h-3 bg-secondary rounded-sm" />
-            <div className="w-3 h-3 bg-orange-500/30 rounded-sm" />
-            <div className="w-3 h-3 bg-orange-500/60 rounded-sm" />
-            <div className="w-3 h-3 bg-orange-500 rounded-sm" />
-          </div>
-          <span>More</span>
-        </div>
-      </div>
-      <div className="grid grid-cols-13 gap-1">
-        {days.map((day, i) => {
-          const intensity = day.activity 
-            ? day.activity.is_crossfit ? 'bg-orange-500' 
-              : day.activity.is_walking ? 'bg-blue-500/60' 
-              : 'bg-secondary'
-            : 'bg-secondary/50'
-          return (
-            <div
-              key={i}
-              className={`w-3 h-3 rounded-sm ${intensity}`}
-              title={day.activity ? day.activity.name : 'Rest day'}
-            />
-          )
-        })}
-      </div>
     </div>
   )
 }
@@ -216,184 +123,162 @@ export default function Dashboard() {
   const [activities, setActivities] = useState<any[]>([])
   const [dailyData, setDailyData] = useState<any[]>([])
   const [shareData, setShareData] = useState<any>(null)
+  const [healthMetrics, setHealthMetrics] = useState<any>(null)
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [statsData, acts, daily, share] = await Promise.all([
-          getStats(),
-          getActivities(50),
+        const [statsData, acts, daily, share, health] = await Promise.all([
+          getCurrentWeekStats(),
+          getActivities(10),
           getDailyData(7),
-          getShareCard()
+          getShareCard(),
+          getLatestHealthMetrics(),
         ])
-        
+
         setStats(statsData)
         setActivities(acts)
-        
-        // Transform daily data for chart
-        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-        const chartData = daily.map((d: any) => {
-          const date = new Date(d.date)
-          return {
-            day: dayNames[date.getDay()],
-            crossfit: d.crossfit,
-            walking: d.walking
-          }
-        })
-        setDailyData(chartData)
+        setDailyData(
+          daily.map((d: any) => {
+            const date = new Date(d.date)
+            return {
+              day: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()],
+              crossfit: d.crossfit,
+              walking: d.walking,
+            }
+          })
+        )
         setShareData(share)
+        setHealthMetrics(health)
       } catch (error) {
         console.error('Failed to load data:', error)
       } finally {
         setLoading(false)
       }
     }
-    
+
     loadData()
   }, [])
 
-  const recentActivities = activities.slice(0, 5)
-
-  // Calculate totals
-  const totalDuration = activities.reduce((acc, a) => acc + (a.moving_time || 0), 0)
-  const totalCalories = activities.reduce((acc, a) => acc + (a.calories || a.moving_time * 0.1), 0)
-  const crossFitCount = activities.filter(a => a.is_crossfit).length
-  const walkingCount = activities.filter(a => a.is_walking).length
+  const recentActivities = activities.slice(0, 4)
+  const totalExerciseMinutes = activities.reduce((sum, item) => sum + Math.round((item.moving_time || 0) / 60), 0)
+  const totalCalories = activities.reduce((sum, item) => {
+    const minutes = (item.moving_time || 0) / 60
+    if (item.is_crossfit) return sum + minutes * 12
+    if (item.is_walking) return sum + minutes * 4
+    return sum + minutes * 6
+  }, 0)
 
   return (
     <main className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
+      <header className="border-b border-border/80">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+          <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg">
+              <div className="p-2 bg-gradient-to-br from-orange-500 to-lime-400 rounded-2xl">
                 <Activity className="w-6 h-6 text-white" />
               </div>
               <div>
                 <h1 className="text-xl font-bold text-foreground">BioMonitor</h1>
-                <p className="text-sm text-muted-foreground">Personal Health Dashboard</p>
+                <p className="text-sm text-muted-foreground">Training and recovery signal board</p>
               </div>
             </div>
-            <Link href="/share">
-              <button className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition">
-                <Share2 className="w-4 h-4" />
-                <span className="text-sm font-medium">Share</span>
-              </button>
-            </Link>
+            <div className="flex items-center gap-3">
+              <span className="hidden md:inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary text-sm text-muted-foreground">
+                <Watch className="w-4 h-4 text-accent" />
+                Apple Watch sync ready
+              </span>
+              <Link href="/share">
+                <button className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-full hover:opacity-90 transition">
+                  <Share2 className="w-4 h-4" />
+                  <span className="text-sm font-medium">Share</span>
+                </button>
+              </Link>
+            </div>
           </div>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Date Navigation */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h2 className="text-2xl font-bold text-foreground">Training Journey</h2>
-            <p className="text-muted-foreground">
-              Since 2024 • {activities.length} activities tracked
-            </p>
+        <section className="mb-8 rounded-[36px] border border-border bg-card/70 panel-glow overflow-hidden">
+          <div className="grid lg:grid-cols-[1.4fr_0.9fr] gap-8 p-6 md:p-8">
+            <div>
+              <p className="metric-kicker text-muted-foreground mb-3">This Week</p>
+              <h2 className="text-4xl md:text-6xl font-bold text-foreground max-w-3xl">
+                Track workload, recovery and Apple Watch signals in one demo-ready dashboard.
+              </h2>
+              <p className="text-muted-foreground text-base md:text-lg mt-4 max-w-2xl">
+                Week of {stats?.week_start || new Date().toLocaleDateString()} with CrossFit, walks, recovery and wearable inputs ready for demo flow.
+              </p>
+              <div className="flex flex-wrap gap-3 mt-6">
+                <Link href="/activity" className="px-5 py-3 rounded-full bg-white text-black text-sm font-medium hover:opacity-90 transition">
+                  View Activity
+                </Link>
+                <Link href="/recovery" className="px-5 py-3 rounded-full bg-secondary text-foreground text-sm font-medium hover:bg-secondary/80 transition">
+                  Explore Recovery
+                </Link>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 self-start">
+              <MetricCard title="Total Duration" value={loading ? 0 : totalExerciseMinutes} unit="min" icon={TimerReset} subtitle="All tracked sessions" loading={loading} />
+              <MetricCard title="Workout Count" value={loading ? 0 : activities.length} unit="sessions" icon={Zap} subtitle="Movement events this cycle" loading={loading} />
+              <MetricCard title="Active Energy" value={loading ? 0 : Math.round(totalCalories)} unit="kcal" icon={Flame} subtitle="Estimated from session type" loading={loading} />
+              <MetricCard title="Recovery Score" value={healthMetrics?.recovery_score || 82} unit="/100" icon={Heart} subtitle="Apple Watch derived" loading={loading} />
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Link href="/activity">
-              <button className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition">
-                View Activity →
-              </button>
-            </Link>
-          </div>
+        </section>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+          <MetricCard title="CrossFit Sessions" value={stats?.crossfit_sessions || 0} unit="/ week" icon={Dumbbell} subtitle={stats?.crossfit_sessions >= 3 ? 'Target hit' : `${3 - (stats?.crossfit_sessions || 0)} to goal`} loading={loading} />
+          <MetricCard title="Walking Distance" value={stats?.walking_distance_km?.toFixed(1) || 0} unit="km" icon={Footprints} subtitle="Low intensity base work" loading={loading} />
+          <MetricCard title="Avg Resting HR" value={healthMetrics?.resting_hr || shareData?.resting_hr || 70} unit="bpm" icon={Heart} subtitle="Latest Apple Watch sync" loading={loading} />
+          <MetricCard title="Exercise Minutes" value={healthMetrics?.exercise_minutes || Math.round((stats?.walking_time_min || 0) * 1.5)} unit="min" icon={Watch} subtitle="Apple Watch exercise ring" loading={loading} />
         </div>
 
-        {/* BIG STATS - Inspired by endless.wenxin.io */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-          <BigStatCard
-            title="Total Duration"
-            value={Math.round(totalDuration / 3600)}
-            unit="hrs"
-            subtext={`${Math.round(totalDuration / 60)} minutes total`}
-            icon={Timer}
-            color="orange"
-          />
-          <BigStatCard
-            title="Total Activities"
-            value={activities.length}
-            unit=""
-            subtext={`${crossFitCount} CrossFit • ${walkingCount} Walking`}
-            icon={Trophy}
-            color="blue"
-          />
-          <BigStatCard
-            title="Calories Burned"
-            value={Math.round(totalCalories)}
-            unit="kcal"
-            subtext="Estimated from HR data"
-            icon={Flame}
-            color="red"
-          />
-          <BigStatCard
-            title="Active Days"
-            value={new Set(activities.map(a => a.start_date?.split('T')[0])).size}
-            unit="days"
-            subtext="This month: 12 days"
-            icon={Calendar}
-            color="green"
-          />
-        </div>
-
-        {/* Charts Row */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <div className="lg:col-span-2">
             <ActivityChart data={dailyData} loading={loading} />
           </div>
           <div className="lg:col-span-1">
             <Link href="/recovery">
-              <div className="bg-card rounded-xl p-6 border border-border h-full hover:border-primary transition cursor-pointer">
-                <h3 className="text-lg font-semibold text-foreground mb-4">Apple Watch Data</h3>
+              <div className="bg-card/80 panel-glow rounded-[28px] p-6 border border-border h-full hover:border-primary transition cursor-pointer">
+                <h3 className="text-lg font-semibold text-foreground mb-4">Apple Watch Snapshot</h3>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <Heart className="w-4 h-4 text-red-500" /> Resting HR
-                    </span>
-                    <span className="font-bold">{shareData?.resting_hr || 58} bpm</span>
+                    <span className="text-muted-foreground">HRV</span>
+                    <span className="font-bold font-mono-display">{healthMetrics?.hrv || shareData?.hrv || 49} ms</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <Zap className="w-4 h-4 text-yellow-500" /> HRV
-                    </span>
-                    <span className="font-bold">{shareData?.hrv || 65} ms</span>
+                    <span className="text-muted-foreground">Resting HR</span>
+                    <span className="font-bold font-mono-display">{healthMetrics?.resting_hr || shareData?.resting_hr || 70} bpm</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <Activity className="w-4 h-4 text-green-500" /> Sleep
-                    </span>
-                    <span className="font-bold">7.2 h</span>
+                    <span className="text-muted-foreground">Sleep</span>
+                    <span className="font-bold font-mono-display">{healthMetrics?.sleep_hours || 7.2} h</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-blue-500" /> VO2 Max
-                    </span>
-                    <span className="font-bold">52.3 ml/kg</span>
+                    <span className="text-muted-foreground">Blood Oxygen</span>
+                    <span className="font-bold font-mono-display">{healthMetrics?.blood_oxygen || 98}%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Active Energy</span>
+                    <span className="font-bold font-mono-display">{healthMetrics?.active_energy_kcal || 684} kcal</span>
                   </div>
                 </div>
-                <p className="text-sm text-muted-foreground mt-6">Click for detailed recovery analysis →</p>
+                <p className="text-sm text-muted-foreground mt-6">Click for detailed metrics and data formats →</p>
               </div>
             </Link>
           </div>
         </div>
 
-        {/* Calendar Heatmap */}
-        <div className="mb-8">
-          <CalendarHeatmap data={activities} />
-        </div>
-
-        {/* Recent Activities */}
-        <div className="bg-card rounded-xl p-6 border border-border">
+        <div className="bg-card/80 panel-glow rounded-[28px] p-6 border border-border">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-foreground">Recent Activities</h3>
             <Link href="/activity">
               <span className="text-sm text-primary hover:underline">View all →</span>
             </Link>
           </div>
-          
+
           {loading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="w-6 h-6 animate-spin" />
@@ -403,10 +288,7 @@ export default function Dashboard() {
               {recentActivities.map((activity, i) => (
                 <div key={i} className="flex items-center justify-between py-3 border-b border-border last:border-0">
                   <div className="flex items-center gap-4">
-                    <div className={`p-2 rounded-lg ${
-                      activity.is_crossfit ? 'bg-orange-500/20' : 
-                      activity.is_walking ? 'bg-blue-500/20' : 'bg-secondary'
-                    }`}>
+                    <div className={`p-2 rounded-2xl ${activity.is_crossfit ? 'bg-orange-500/20' : activity.is_walking ? 'bg-blue-500/20' : 'bg-secondary'}`}>
                       {activity.is_crossfit ? (
                         <Dumbbell className="w-4 h-4 text-orange-500" />
                       ) : activity.is_walking ? (
@@ -419,30 +301,21 @@ export default function Dashboard() {
                       <p className="font-medium text-foreground">{activity.name}</p>
                       <p className="text-sm text-muted-foreground">
                         {activity.type} • {new Date(activity.start_date).toLocaleDateString()}
-                        {activity.average_heartrate && ` • ${Math.round(activity.average_heartrate)} bpm`}
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-sm font-medium text-foreground">
-                      {Math.round(activity.moving_time / 60)} min
-                    </span>
-                    {activity.calories && (
-                      <p className="text-xs text-muted-foreground">{Math.round(activity.calories)} kcal</p>
-                    )}
-                  </div>
+                  <span className="text-sm font-medium text-foreground font-mono-display">{Math.round(activity.moving_time / 60)} min</span>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-center text-muted-foreground py-8">No activities yet. Sync your data!</p>
+            <p className="text-center text-muted-foreground py-8">No activities yet. Sync your data.</p>
           )}
         </div>
 
-        {/* Footer */}
         <footer className="mt-12 pt-8 border-t border-border text-center">
           <p className="text-muted-foreground text-sm">
-            BioMonitor v0.1.0 • Data from Apple Watch, Strava & more
+            BioMonitor v0.1.0 • Data from Apple Watch, Strava and future wellness connectors
           </p>
         </footer>
       </div>

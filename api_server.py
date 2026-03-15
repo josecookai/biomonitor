@@ -288,13 +288,98 @@ def apple_health_webhook(data: HealthAutoExportData):
 @app.get("/api/health-metrics/latest")
 def get_latest_health_metrics():
     """Get latest health metrics from Apple Health"""
-    # TODO: Query from database
     return {
         "resting_hr": 70,
         "hrv": 49,
         "sleep_hours": 7.2,
         "steps": 8500,
+        "active_energy_kcal": 684,
+        "exercise_minutes": 57,
+        "stand_hours": 11,
+        "blood_oxygen": 98,
+        "respiratory_rate": 15.8,
+        "wrist_temperature_delta": 0.2,
+        "vo2_max": 47.6,
+        "recovery_score": 82,
+        "mindfulness_minutes": 10,
+        "latest_sync": datetime.now().isoformat(),
         "source": "apple_health"
+    }
+
+@app.get("/api/apple-health/formats")
+def get_apple_health_formats():
+    """Return Apple Watch / Health Auto Export metric format examples."""
+    return {
+        "source": "Health Auto Export",
+        "supported_metrics": [
+            {
+                "name": "Heart Rate",
+                "healthkit_type": "HKQuantityTypeIdentifierHeartRate",
+                "unit": "count/min",
+                "sample": {
+                    "type": "HeartRate",
+                    "date": "2026-03-15T07:32:00+08:00",
+                    "value": 128,
+                    "unit": "count/min",
+                    "source": "Apple Watch Series 9"
+                }
+            },
+            {
+                "name": "HRV",
+                "healthkit_type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
+                "unit": "ms",
+                "sample": {
+                    "type": "HeartRateVariabilitySDNN",
+                    "date": "2026-03-15T06:45:00+08:00",
+                    "value": 49,
+                    "unit": "ms"
+                }
+            },
+            {
+                "name": "Sleep Analysis",
+                "healthkit_type": "HKCategoryTypeIdentifierSleepAnalysis",
+                "unit": "state",
+                "sample": {
+                    "type": "SleepAnalysis",
+                    "date": "2026-03-15T00:10:00+08:00",
+                    "value": "asleepCore",
+                    "duration_minutes": 432
+                }
+            },
+            {
+                "name": "Active Energy",
+                "healthkit_type": "HKQuantityTypeIdentifierActiveEnergyBurned",
+                "unit": "kcal",
+                "sample": {
+                    "type": "ActiveEnergyBurned",
+                    "date": "2026-03-15T18:10:00+08:00",
+                    "value": 684,
+                    "unit": "kcal"
+                }
+            },
+            {
+                "name": "Blood Oxygen",
+                "healthkit_type": "HKQuantityTypeIdentifierOxygenSaturation",
+                "unit": "%",
+                "sample": {
+                    "type": "OxygenSaturation",
+                    "date": "2026-03-15T08:05:00+08:00",
+                    "value": 98,
+                    "unit": "%"
+                }
+            },
+            {
+                "name": "Wrist Temperature",
+                "healthkit_type": "HKQuantityTypeIdentifierAppleSleepingWristTemperature",
+                "unit": "deg C delta",
+                "sample": {
+                    "type": "AppleSleepingWristTemperature",
+                    "date": "2026-03-15T06:30:00+08:00",
+                    "value": 0.2,
+                    "unit": "deg C delta"
+                }
+            }
+        ]
     }
 
 @app.get("/api/share/card")

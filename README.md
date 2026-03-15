@@ -6,9 +6,9 @@ Personal health metrics tracking skill for OpenClaw. Monitor your CrossFit, walk
 
 ## ✨ Features
 
-- 📊 **Training Journey Overview** - Total duration, activities, calories (inspired by Endless Miles)
+- 📊 **Training Journey Overview** - Total duration, activities, calories, and weekly workload
 - 🏋️ **CrossFit Tracking** - WOD logging, PR records, time trends
-- 🍎 **Apple Watch Integration** - Heart rate, HRV, sleep, recovery data
+- 🍎 **Apple Watch Integration** - Heart rate, HRV, sleep, recovery data, and payload samples
 - 📅 **Activity Calendar** - GitHub-style heatmap of your training
 - 📤 **Shareable Reports** - Generate beautiful summary cards
 - 🔌 **Multi-Platform** - Strava, Apple Health, and more coming soon
@@ -18,32 +18,48 @@ Personal health metrics tracking skill for OpenClaw. Monitor your CrossFit, walk
 ## 🏗️ Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│                        Data Sources                                   │
-├──────────────┬──────────────┬──────────────┬──────────────┬──────────┤
-│ Apple Watch  │    Strava    │   Garmin     │   Concept2   │  Manual  │
-│  (HealthKit) │     API      │  (Planned)   │  (Planned)   │   Input  │
-└──────┬───────┴──────┬───────┴──────┬───────┴──────┬───────┴────┬─────┘
-       └───────────────┴───────────────┴──────────────┴────────────┘
-                                 │
-                                 ▼
-                    ┌─────────────────────┐
-                    │   FastAPI Backend   │  ← api_server.py
-                    │   Port: 8000        │      (Python)
-                    └──────────┬──────────┘
-                               │
-                               ▼
-                    ┌─────────────────────┐
-                    │   SQLite Database   │  ← biomonitor.db
-                    │   (biomonitor.db)   │
-                    └──────────┬──────────┘
-                               │
-                               ▼
-                    ┌─────────────────────┐
-                    │   Next.js Dashboard │  ← dashboard/web
-                    │   Port: 3000        │      (React/TS)
-                    └─────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                Data Sources                                 │
+├──────────────┬──────────────┬──────────────┬──────────────┬────────────────┤
+│ Apple Watch  │    Strava    │   Garmin     │   Concept2   │ Future Wellness │
+│  (HealthKit) │     API      │  (Planned)   │  (Planned)   │   Connectors    │
+└──────┬───────┴──────┬───────┴──────┬───────┴──────┬───────┴────────┬───────┘
+       └───────────────┴───────────────┴──────────────┴────────────────┘
+                                      ▼
+                        ┌─────────────────────────────┐
+                        │  Connector / Ingestion Hub  │
+                        │ normalization + webhooks    │
+                        └──────────────┬──────────────┘
+                                       ▼
+                        ┌─────────────────────────────┐
+                        │       FastAPI Backend       │  ← api_server.py
+                        │       metrics + APIs        │
+                        └──────────────┬──────────────┘
+                                       ▼
+                        ┌─────────────────────────────┐
+                        │  SQLite / Future TSDB slot  │
+                        └──────────────┬──────────────┘
+                                       ▼
+                        ┌─────────────────────────────┐
+                        │      Next.js Dashboard      │  ← dashboard/web
+                        │  overview + recovery + UX   │
+                        └─────────────────────────────┘
 ```
+
+### Future Wellness Connector Layer
+
+Reserved integration slots for the next phase:
+
+| Provider | Planned intake | Notes |
+|----------|----------------|-------|
+| Apple Watch | HealthKit / Health Auto Export webhook | Recovery, sleep, HRV, rings |
+| Garmin (Fenix / Epix / Forerunner) | Garmin Health API or partner sync export | Endurance load, training readiness |
+| Xiaomi Smart Band | Mi Fitness / Zepp export bridge | Budget wearable coverage |
+| Oura Ring | Oura Cloud API | Sleep, readiness, temperature |
+| WHOOP 4.0 | WHOOP Developer API | Strain, recovery, sleep debt |
+| Concept2 PM5 | Concept2 Logbook API / ErgData sync | Row, ski, bike erg sessions for HYROX |
+
+This connector layer is intentionally left open in the architecture so BioMonitor can evolve into a unified wellness graph instead of a Strava-only dashboard.
 
 ---
 
@@ -68,7 +84,7 @@ python3 setup_demo.py
 
 ```bash
 # Python backend
-pip install fastapi uvicorn pandas sqlalchemy
+pip install -r requirements.txt
 
 # Frontend
 cd dashboard/web
@@ -79,7 +95,7 @@ npm install
 
 Terminal 1 - Backend:
 ```bash
-python api_server.py
+python3 api_server.py
 # API: http://localhost:8000
 # Docs: http://localhost:8000/docs
 ```
@@ -109,7 +125,7 @@ python main.py log --wod "Fran" --time "4:52" --rpe 8
 |------|-----|-------------|
 | **Home** | `/` | Training journey overview with big stats |
 | **Activity** | `/activity` | Detailed CrossFit & walking analysis |
-| **Recovery** | `/recovery` | Apple Watch data: HR, HRV, sleep |
+| **Recovery** | `/recovery` | Apple Watch data: HR, HRV, sleep, payload formats |
 | **Share** | `/share` | Generate and export summary cards |
 
 ---
@@ -121,6 +137,7 @@ python main.py log --wod "Fran" --time "4:52" --rpe 8
 - ✅ **Heart Rate**: Resting HR, HRV, zones
 - ✅ **Sleep**: Duration, stages, efficiency
 - ✅ **Recovery**: Training readiness, temperature
+- ✅ **Export Formats**: Health Auto Export JSON payload examples
 
 ### Setup
 1. Install [Health Auto Export](https://apps.apple.com/app/health-auto-export/id1115567069) on iPhone
@@ -159,11 +176,13 @@ python main.py log --wod "Fran" --time "4:52" --rpe 8
 |----------|--------|-------------|
 | `/api/health` | GET | Health check |
 | `/api/activities` | GET | List activities (with filters) |
-| `/api/stats` | GET | All-time statistics |
+| `/api/stats/current-week` | GET | Current week statistics |
 | `/api/daily` | GET | Daily aggregated data |
 | `/api/crossfit/workouts` | GET | List CrossFit workouts |
 | `/api/crossfit/log` | POST | Log a CrossFit workout |
 | `/api/apple-health/webhook` | POST | Receive Apple Health data |
+| `/api/health-metrics/latest` | GET | Latest Apple Watch-style recovery snapshot |
+| `/api/apple-health/formats` | GET | Sample Apple Watch / Health Auto Export payload formats |
 | `/api/share/card` | GET | Get share card data |
 
 ---
@@ -195,22 +214,15 @@ biomonitor/
 ├── setup_demo.py              # One-click demo data
 ├── SKILL.md                   # OpenClaw skill manifest
 ├── DEMO_GUIDE.md              # Presentation guide
+├── requirements.txt           # Python dependencies
 ├── config.yaml                # Configuration (not in git)
 ├── collectors/                # Data collection modules
-│   ├── apple_health.py        # Apple Watch collector
-│   ├── strava.py              # Strava collector
-│   └── concept2.py            # Concept2 collector (WIP)
 ├── processors/                # Data analysis
 ├── storage/                   # Database layer
 ├── docs/                      # Documentation
-│   ├── APPLE_WATCH_DATA.md    # Apple Watch data formats
-│   └── HARDWARE_ROADMAP.md    # Hardware integration plan
 └── dashboard/
     └── web/                   # Next.js frontend
         ├── app/               # Pages
-        │   ├── page.tsx       # Main dashboard
-        │   ├── activity/      # Activity details
-        │   └── recovery/      # Recovery metrics
         └── lib/api.ts         # API client
 ```
 
@@ -258,17 +270,3 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 3. Add data mapping to unified schema
 4. Update [HARDWARE_ROADMAP.md](docs/HARDWARE_ROADMAP.md)
 5. Submit a PR!
-
----
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
----
-
-## 🙏 Acknowledgments
-
-- UI inspiration from [Endless Miles](https://endless.wenxin.io/)
-- Built for the OpenClaw ecosystem
-- Made with ❤️ for CrossFit athletes and health enthusiasts
