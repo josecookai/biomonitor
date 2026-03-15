@@ -20,10 +20,21 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# CORS for frontend
+# CORS for frontend - Support both local and Railway
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://biomonitor-web-production.up.railway.app",
+    "https://*.railway.app"  # Allow all Railway subdomains
+]
+
+# Add custom origin from env var if set
+if os.getenv("FRONTEND_URL"):
+    ALLOWED_ORIGINS.append(os.getenv("FRONTEND_URL"))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -239,6 +250,25 @@ def sync_strava(days: int = 30):
             "success": True,
             "synced_activities": count,
             "days": days
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
+
+@app.post("/api/activities/sync")
+def sync_single_activity(activity: Activity):
+    """Sync a single activity (for external sync scripts)"""
+    try:
+        # Convert to DataFrame format for database
+        import pandas as pd
+        activity_dict = activity.dict()
+        activity_dict['id'] = activity_dict.get('id') or int(datetime.now().timestamp())
+        
+        df = pd.DataFrame([activity_dict])
+        db.save_activities(df)
+        
+        return {
+            "success": True,
+            "message": f"Activity '{activity.name}' synced successfully"
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
