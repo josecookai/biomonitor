@@ -21,7 +21,6 @@ def load_config():
             return yaml.safe_load(f)
     return {}
 
-
 def save_config(config: dict):
     """Write configuration back to config.yaml"""
     config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.yaml')
@@ -31,19 +30,29 @@ def save_config(config: dict):
 
 _REQUEST_TIMEOUT = (5, 30)  # (connect_timeout, read_timeout) in seconds
 
+def load_strava_config() -> Dict:
+    """Load Strava config from env first, then fallback to config.yaml."""
+    config = load_config()
+    strava_config = config.get('strava', {})
+
+    return {
+        'client_id': os.getenv('STRAVA_CLIENT_ID', strava_config.get('client_id')),
+        'client_secret': os.getenv('STRAVA_CLIENT_SECRET', strava_config.get('client_secret')),
+        'access_token': os.getenv('STRAVA_ACCESS_TOKEN', strava_config.get('access_token')),
+        'refresh_token': os.getenv('STRAVA_REFRESH_TOKEN', strava_config.get('refresh_token')),
+    }
+
 
 class StravaCollector:
     """Collect workout data from Strava API - supports both config.yaml and env vars"""
 
     def __init__(self, access_token: str = None):
-        config = load_config()
-        strava_config = config.get('strava', {})
+        strava_config = load_strava_config()
 
-        # Priority: 1) explicit arg, 2) env var, 3) config.yaml
-        self.access_token = access_token or os.getenv('STRAVA_ACCESS_TOKEN') or strava_config.get('access_token')
-        self.client_id = os.getenv('STRAVA_CLIENT_ID') or strava_config.get('client_id')
-        self.client_secret = os.getenv('STRAVA_CLIENT_SECRET') or strava_config.get('client_secret')
-        self.refresh_token = os.getenv('STRAVA_REFRESH_TOKEN') or strava_config.get('refresh_token')
+        self.access_token = access_token or strava_config.get('access_token')
+        self.client_id = strava_config.get('client_id')
+        self.client_secret = strava_config.get('client_secret')
+        self.refresh_token = strava_config.get('refresh_token')
         self.base_url = "https://www.strava.com/api/v3"
         
         # Sync tokens back to config if env vars are used

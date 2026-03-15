@@ -12,6 +12,10 @@ This repo is deployed to Railway as two services:
 - Port: Railway `PORT`
 - Recommended vars:
   - `CORS_ORIGINS=https://your-frontend-domain`
+  - `STRAVA_CLIENT_ID=...`
+  - `STRAVA_CLIENT_SECRET=...`
+  - `STRAVA_ACCESS_TOKEN=...`
+  - `STRAVA_REFRESH_TOKEN=...`
 
 ## Web service
 

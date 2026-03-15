@@ -16,6 +16,27 @@ BioMonitor is an open-source personal health platform that syncs data from Strav
 
 Real-time activity heatmap, weekly health metrics, personalized supplement recommendations, and smart reminders for sleep, hydration, and recovery.
 
+## 🚂 Railway Deploy
+
+BioMonitor is deployed on Railway as two services:
+
+- **Web**: [https://biomonitor-web-production.up.railway.app](https://biomonitor-web-production.up.railway.app)
+- **API**: [https://biomonitor-api-production.up.railway.app](https://biomonitor-api-production.up.railway.app)
+
+Deployment model:
+
+- `biomonitor-api`: FastAPI backend from repo root
+- `biomonitor-web`: static Next.js export from `dashboard/web`
+
+Required Railway variables:
+
+- `biomonitor-web`: `NEXT_PUBLIC_API_URL=https://biomonitor-api-production.up.railway.app`
+- `biomonitor-api`: `CORS_ORIGINS=https://biomonitor-web-production.up.railway.app`
+- `biomonitor-api`: `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_ACCESS_TOKEN`, `STRAVA_REFRESH_TOKEN`
+
+Detailed setup:
+[docs/RAILWAY_DEPLOY.md](/Users/bowenwang/Documents/Openclaw%20Skill/biomonitor/docs/RAILWAY_DEPLOY.md)
+
 ## Features
 
 ### 📊 Data Sources
@@ -240,154 +261,3 @@ You'll be redirected to `localhost:8000/api/whoop/callback?code=XXXX` — the se
 ```bash
 curl -X POST http://localhost:8000/api/whoop/sync
 ```
-
-✅ Done. ZN's recovery score, HRV, strain, and sleep data will appear in the dashboard.
-
----
-
-## API Reference
-
-All endpoints return JSON. Optional API key authentication via `X-API-Key` header.
-
-### Activities
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `GET /api/activities?limit=30&activity_type=crossfit\|walking` | GET | List activities, optionally filtered |
-| `GET /api/daily?days=30` | GET | Daily aggregated stats |
-| `GET /api/stats/current-week` | GET | Current week statistics |
-| `GET /api/stats/weekly?weeks=4` | GET | Last N weeks of aggregated stats |
-
-### CrossFit
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `GET /api/crossfit/workouts?limit=10` | GET | Recent CrossFit workouts |
-| `POST /api/crossfit/log` | POST | Log a new workout |
-
-**POST `/api/crossfit/log` request body:**
-```json
-{
-  "wod_name": "Fran",
-  "date": "2026-03-15T10:30:00",
-  "time": "4:52",
-  "rounds": 21,
-  "reps": 45,
-  "weight": null,
-  "rpe": 8,
-  "notes": "Felt strong today"
-}
-```
-
-### Strava
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `POST /api/strava/sync?days=30` | POST | Sync last N days of activities |
-| `GET /api/strava/stats` | GET | Strava connection status |
-
-### Apple Health
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `POST /api/apple-health/webhook` | POST | Receive Health Auto Export data |
-| `GET /api/health-metrics/latest` | GET | Latest HR, HRV, sleep metrics |
-| `GET /api/health-metrics/history?days=30&metric_type=HeartRateVariability` | GET | Metric history |
-
-### Health & Status
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `GET /api/health` | GET | Health check (public) |
-
-## Configuration
-
-Create `config.yaml` in the project root with your API credentials:
-
-```yaml
-strava:
-  client_id: "your_strava_client_id"
-  client_secret: "your_strava_client_secret"
-  access_token: "your_strava_access_token"
-  refresh_token: "your_strava_refresh_token"
-
-apple_health:
-  export_path: "/tmp/apple_health_exports"
-  webhook_enabled: true
-
-oura:
-  access_token: "your_oura_personal_access_token"
-
-whoop:
-  client_id: "your_whoop_client_id"
-  client_secret: "your_whoop_client_secret"
-  access_token: "your_whoop_access_token"
-  refresh_token: "your_whoop_refresh_token"
-
-xiaomi:
-  account_email: "your_xiaomi_account_email"
-  password: "your_xiaomi_password"  # or export JSON file instead
-```
-
-All values are optional. Features are disabled if not configured.
-
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `BIOMONITOR_API_KEY` | (unset) | Optional API key. If set, all requests except `/api/health` require `X-API-Key` header |
-| `BIOMONITOR_HOST` | `127.0.0.1` | Server bind address |
-| `BIOMONITOR_PORT` | `8000` | Server port |
-| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Frontend API URL |
-| `NEXT_PUBLIC_API_KEY` | (unset) | Frontend API key (optional) |
-
-## Project Structure
-
-```
-biomonitor/
-├── api_server.py              # FastAPI application
-├── main.py                    # CLI interface
-├── config.yaml                # Configuration (not in git)
-├── biomonitor.db              # SQLite database
-│
-├── collectors/                # Device integrations
-│   ├── __init__.py           # Strava, Apple Health, Oura, WHOOP, Xiaomi
-│   ├── oura.py
-│   ├── whoop.py
-│   └── xiaomi.py
-│
-├── engine/                    # Intelligence layer
-│   ├── reminders.py          # Sleep, hydration, standing reminders
-│   └── supplements.py        # Personalized supplement recommendations
-│
-├── storage/                   # Database layer
-│   └── __init__.py           # BioDatabase class
-│
-├── processors/                # Metrics calculation
-│   └── __init__.py           # MetricsCalculator
-│
-├── users/                     # User profiles
-│   └── data/
-│       ├── carl.md           # Oura Ring user
-│       ├── zelda.md          # Xiaomi user
-│       └── zn.md             # WHOOP user
-│
-├── dashboard/web/             # Next.js frontend
-│   ├── app/                  # Pages and layouts
-│   ├── lib/                  # API client
-│   └── package.json
-│
-└── docs/                      # Setup guides
-    ├── OURA_SETUP.md
-    ├── XIAOMI_SETUP.md
-    └── WHOOP_SETUP.md
-```
-
-## Contributing
-
-We welcome contributions! Here's how you can help:
-
-- **Report bugs** — Open an issue with steps to reproduce
-- **Request features** — Discuss new integrations and features via GitHub issues
-- **Submit PRs** — Fork, create a feature branch, and send a pull request
-
-Please follow the existing code style and include tests for new functionality.
-
-## License
-
-MIT License — See [LICENSE](LICENSE) for details.

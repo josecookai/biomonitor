@@ -52,6 +52,7 @@ class BioDatabase:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        self._ensure_activity_columns(cursor)
 
         # CrossFit workouts (manual logging)
         cursor.execute('''
@@ -109,6 +110,30 @@ class BioDatabase:
 
         conn.commit()
         conn.close()
+
+    def _ensure_activity_columns(self, cursor):
+        """Backfill columns for databases created before the current schema."""
+        cursor.execute("PRAGMA table_info(activities)")
+        existing_columns = {row["name"] for row in cursor.fetchall()}
+
+        column_defs = {
+            "strava_id": "BIGINT",
+            "sport_type": "TEXT",
+            "elapsed_time": "INTEGER",
+            "average_speed": "REAL",
+            "max_speed": "REAL",
+            "total_elevation_gain": "REAL",
+            "raw_data": "TEXT",
+            "created_at": "TIMESTAMP",
+        }
+
+        for column_name, column_def in column_defs.items():
+            if column_name not in existing_columns:
+                cursor.execute(f"ALTER TABLE activities ADD COLUMN {column_name} {column_def}")
+
+        cursor.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_activities_strava_id ON activities(strava_id)"
+        )
 
     def save_activity(self, activity: Dict) -> bool:
         """Save activity to database"""

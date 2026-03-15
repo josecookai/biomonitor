@@ -51,7 +51,15 @@ activities = [
 ]
 
 for a in activities:
-    cursor.execute('INSERT OR REPLACE INTO activities VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', a)
+    cursor.execute(
+        '''
+        INSERT OR REPLACE INTO activities (
+            id, name, type, start_date, distance, moving_time,
+            average_heartrate, max_heartrate, is_crossfit, is_walking
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''',
+        a
+    )
 
 # Add CrossFit workouts
 crossfit = [
@@ -61,7 +69,14 @@ crossfit = [
 ]
 
 for c in crossfit:
-    cursor.execute('INSERT OR REPLACE INTO crossfit_workouts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', c)
+    cursor.execute(
+        '''
+        INSERT OR REPLACE INTO crossfit_workouts (
+            id, wod_name, date, time, rounds, reps, weight, rpe, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''',
+        c
+    )
 
 conn.commit()
 conn.close()

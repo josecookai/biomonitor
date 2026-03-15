@@ -12,4 +12,4 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "python3 setup_demo.py && python3 api_server.py"]
+CMD ["python3", "api_server.py"]

@@ -1,0 +1,7 @@
+biomonitor.db
+test_sync.db
+migration_test.db
+__pycache__/
+dashboard/web/node_modules/
+dashboard/web/dist/
+.git
