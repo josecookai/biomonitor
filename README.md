@@ -114,10 +114,136 @@ python setup_demo.py
 | Device | Primary User | Setup Guide | Auth Method |
 |--------|--------------|-------------|-------------|
 | Strava | Any | — | OAuth 2.0 |
-| Apple Health | Any | — | Webhook |
-| Oura Ring | Carl | [docs/OURA_SETUP.md](docs/OURA_SETUP.md) | Personal Access Token |
+| Apple Health | Any (Zelda) | [↓ Apple Watch](#-zelda--apple-watch--apple-health) | Webhook |
+| Oura Ring | Carl | [↓ Oura Ring](#-carl--oura-ring) · [docs/OURA_SETUP.md](docs/OURA_SETUP.md) | Personal Access Token |
 | Xiaomi Mi Band | Zelda | [docs/XIAOMI_SETUP.md](docs/XIAOMI_SETUP.md) | Export via Gadgetbridge |
-| WHOOP | ZN | [docs/WHOOP_SETUP.md](docs/WHOOP_SETUP.md) | OAuth 2.0 |
+| WHOOP | ZN | [↓ WHOOP](#-zn--whoop) · [docs/WHOOP_SETUP.md](docs/WHOOP_SETUP.md) | OAuth 2.0 |
+
+---
+
+## 🔑 API Key Setup — Step by Step
+
+### 🟠 Carl — Oura Ring
+
+Oura uses a **Personal Access Token** — no OAuth, no app registration needed.
+
+**Step 1 — Log in to Oura Cloud**
+
+Go to **https://cloud.ouraring.com** and sign in with your Oura account.
+
+**Step 2 — Open Personal Access Tokens**
+
+> Profile (top right) → **Personal Access Tokens** → **Create New Token**
+
+Or go directly: **https://cloud.ouraring.com/personal-access-tokens**
+
+**Step 3 — Create a token**
+
+- Name: `BioMonitor`
+- Click **Create**
+- ⚠️ Copy the token immediately — it is shown **only once**
+
+**Step 4 — Add to config.yaml**
+
+```yaml
+oura:
+  access_token: "eyJ..."   # paste your token here
+```
+
+**Step 5 — Sync**
+
+```bash
+curl -X POST http://localhost:8000/api/oura/sync
+```
+
+✅ Done. Carl's sleep, readiness, and HRV data will appear in the dashboard.
+
+---
+
+### 🟣 Zelda — Apple Watch / Apple Health
+
+Apple Health does not have a direct API — data is pushed via the **Health Auto Export** iOS app (free).
+
+**Step 1 — Install Health Auto Export on iPhone**
+
+Search "Health Auto Export" on the App Store, or go to:
+> **https://apps.apple.com/app/health-auto-export-json-csv/id1115567069**
+
+**Step 2 — Configure automatic export**
+
+In the app:
+1. Tap **Automations** → **Add Automation**
+2. Select metrics: Heart Rate, HRV, Sleep Analysis, Step Count, Active Energy
+3. Set **Export Format** to `JSON`
+4. Set **Destination** to `REST API`
+5. Enter URL: `http://YOUR_SERVER_IP:8000/api/apple-health/webhook`
+6. Set interval: every **15 minutes** or **1 hour**
+
+> 💡 If your server is on a Mac at home, use your local IP (e.g. `192.168.1.x`). For remote servers, use your public IP or domain.
+
+**Step 3 — Send a test export**
+
+In the app, tap **Export Now** and check the server responds `200 OK`.
+
+**Step 4 — Verify data**
+
+```bash
+curl http://localhost:8000/api/health-metrics/latest
+```
+
+✅ Done. Zelda's heart rate, sleep, and HRV will update automatically.
+
+---
+
+### 🔵 ZN — WHOOP
+
+WHOOP uses **OAuth 2.0** — requires a free developer account.
+
+**Step 1 — Create a WHOOP Developer account**
+
+Go to **https://developer.whoop.com** and sign in with your WHOOP credentials.
+
+**Step 2 — Create a new application**
+
+> **My Apps** → **Create App**
+
+Fill in:
+- **App Name**: `BioMonitor`
+- **Redirect URI**: `http://localhost:8000/api/whoop/callback`
+- **Scopes**: check all of — `read:recovery` `read:sleep` `read:workout` `read:cycles` `read:body_measurement`
+
+Click **Save**. Copy your **Client ID** and **Client Secret**.
+
+**Step 3 — Add credentials to config.yaml**
+
+```yaml
+whoop:
+  client_id: "abc123"
+  client_secret: "xyz789"
+  redirect_uri: "http://localhost:8000/api/whoop/callback"
+```
+
+**Step 4 — Authorize BioMonitor**
+
+```bash
+# Get the authorization URL
+curl http://localhost:8000/api/whoop/auth-url
+# → {"auth_url": "https://api.prod.whoop.com/oauth/..."}
+```
+
+Open that URL in your browser → log in with WHOOP → click **Authorize**.
+
+You'll be redirected to `localhost:8000/api/whoop/callback?code=XXXX` — the server exchanges the code automatically.
+
+**Step 5 — Sync**
+
+```bash
+curl -X POST http://localhost:8000/api/whoop/sync
+```
+
+✅ Done. ZN's recovery score, HRV, strain, and sleep data will appear in the dashboard.
+
+---
 
 ## API Reference
 
